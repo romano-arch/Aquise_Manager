@@ -88,6 +88,7 @@ h3{font-size:14px}
 .btn.danger:hover{filter:brightness(.92)}
 .btn.ghost{background:none; border-color:transparent; color:var(--ink-2)}
 .btn.ghost:hover{background:var(--surface-3); color:var(--ink)}
+.btn.active{background:#FEF3DC; border-color:#E8A830; color:#7A5200}
 .btn.sm{padding:4px 9px; font-size:12.5px}
 .btn:disabled{opacity:.45; cursor:not-allowed}
 
@@ -155,6 +156,10 @@ select{appearance:none; background-image:linear-gradient(45deg,transparent 50%,v
 .chip.crit{background:var(--crit-soft); border-color:var(--crit-line); color:var(--crit)}
 .chip.ok{background:var(--ok-soft); border-color:var(--ok-line); color:var(--ok)}
 .chip.accent{background:var(--accent-soft); border-color:#B4D2E5; color:var(--accent)}
+/* Kontaktweg laesst sich direkt in der Tabelle umschalten */
+button.wegchip{font:inherit; cursor:pointer; appearance:none}
+button.wegchip:hover{filter:brightness(.94)}
+button.wegchip:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
 
 /* ---------- Kanban ---------- */
 .board{display:flex; gap:12px; overflow-x:auto; padding-bottom:14px; scroll-snap-type:x proximity}
@@ -180,6 +185,10 @@ table.data tbody tr:hover{background:var(--surface-2)}
 table.data tr.sel{background:var(--accent-soft)}
 table.data tr.sel:hover{background:#D7E7F1}
 .cellname{font-weight:600}
+.ap-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle;flex-shrink:0}
+.ap-dot.gruen{background:#3ECF8E}
+.ap-dot.orange{background:#E8A830}
+.ap-dot.grau{background:var(--line-strong)}
 .linkish{background:none;border:0;padding:0;color:var(--accent);font-weight:600;text-align:left;text-decoration:underline;text-underline-offset:2px}
 .konlinks{display:flex;gap:10px;flex-wrap:wrap}
 .konlinks a{font-size:12px;white-space:nowrap;color:var(--accent);text-decoration:none;font-weight:600}
@@ -706,13 +715,12 @@ const Sync = {
   laeuft: false,
   nochmal:false,   // während des Übertragens kam schon die nächste Änderung
   fehler: null,
-  _retryTimer: null,   // läuft nach Fehlern, bis der nächste Sync klappt
 
   /* Nach dem Laden aus Supabase gilt alles als übertragen */
   grundstellung(){
     this.stand = {};
     for (const t of SYNC_TABELLEN) this.stand[t.schluessel] = this.momentaufnahme(t);
-    this.fehler = null; this.laeuft = false; this._retryStop(); this.anzeigen();
+    this.fehler = null; this.laeuft = false; this.anzeigen();
   },
 
   momentaufnahme(t){
@@ -729,12 +737,11 @@ const Sync = {
     if(this.laeuft){ this.nochmal = true; return; }
     this.laeuft = true; this.anzeigen();
     this.durchlauf()
-      .then(() => { this.fehler = null; this._retryStop(); })
+      .then(() => { this.fehler = null; })
       .catch(e => {
         this.fehler = e.message || String(e);
         console.error(e);
         toast("Nicht gespeichert: "+this.fehler);
-        this._retryStart();
       })
       .then(() => {
         this.laeuft = false; this.anzeigen();
@@ -774,27 +781,11 @@ const Sync = {
     return n;
   },
 
-  /* Retry-Timer starten/stoppen: bei Netzfehler o.ä. wird der Sync alle
-     60 Sek automatisch wiederholt, bis er klappt. */
-  _retryStart(){
-    if(this._retryTimer) return;          // läuft schon
-    this._retryTimer = setInterval(() => {
-      if(!Auth.eingeloggt() || !this.stand) return this._retryStop();
-      if(this.offen() > 0) this.anstossen();
-      else this._retryStop();
-    }, 60*1000);
-    this.anzeigen();   // Footer-Text sofort aktualisieren
-  },
-  _retryStop(){
-    if(this._retryTimer){ clearInterval(this._retryTimer); this._retryTimer = null; }
-    this.anzeigen();
-  },
-
   anzeigen(){
     if(Store.backend.id !== "supabase") return;
     const el = document.getElementById("storeLabel");
     const dot = document.getElementById("storeDot");
-    const txt = this.fehler ? (this._retryTimer ? "Nicht gespeichert – Retry…" : "Nicht gespeichert!") : this.laeuft ? "Speichere…" : "Supabase (Cloud)";
+    const txt = this.fehler ? "Nicht gespeichert!" : this.laeuft ? "Speichere…" : "Supabase (Cloud)";
     const farbe = this.fehler ? "#E0554A" : this.laeuft ? "#C99A2E" : "#3ECF8E";
     if(el) el.textContent = txt;
     if(dot) dot.style.background = farbe;
@@ -831,13 +822,12 @@ function stufenName(id){
   return s ? s.name : (id === "angebot_erstellt" ? "Angebot abgegeben" : "Neu");
 }
 
-/* Google-Places-Kategorie -> Kontaktweg, Faustregel aus Abschnitt 9b */
-const WEG_FAUSTREGEL = [
-  { muster:/krankenhaus|klinik|mvz|dialyse|reha/i,        weg:"Aktiv"  },
-  { muster:/praxis|zahnarzt|physio|heilprakt|apothek/i,   weg:"Passiv" },
-  { muster:/träger|verbund|gGmbH|Werk/i,                  weg:"Aktiv"  },
-  { muster:/kita|kindergarten|schule/i,                   weg:"Passiv" }
-];
+/* Kontaktweg beim Import. Telefonieren lohnt nur bei grossen Arbeitgebern -
+   dort ist das Ziel, in den Lieferantenkatalog zu kommen, nicht der schnelle
+   Abschluss. Alles andere laeuft ueber den Brief. Frueher entschied hier die
+   Branche, was zu viele Anrufziele erzeugte: /Werk/ traf auch Wasserwerk,
+   Stadtwerke und Handwerk, /träger/ auch Vermoegenstraeger. */
+const WEG_AKTIV_SEGMENTE = ["Gro\u00dfarbeitgeber"];
 /* Fremde Branchenbezeichnungen auf die eigene Liste übersetzen.
    Reihenfolge zählt: das erste passende Muster gewinnt. */
 const BRANCHE_MUSTER = [
@@ -856,10 +846,8 @@ function brancheVorschlag(text){
   return "Sonstige";
 }
 
-function wegVorschlag(text){
-  const t = String(text||"");
-  for (const r of WEG_FAUSTREGEL) if (r.muster.test(t)) return r.weg;
-  return "Passiv";
+function wegVorschlag(segment){
+  return WEG_AKTIV_SEGMENTE.includes(String(segment||"")) ? "Aktiv" : "Passiv";
 }
 
 /* ---------- 2c. Ansprache-Gruppe und Segment -------------------
@@ -1190,6 +1178,24 @@ function vorgangLoeschen(id){
   Store.data.aktivitaeten = Store.data.aktivitaeten.filter(a=>a.vorgangId!==id);
   Store.data.anhaenge = (Store.data.anhaenge||[]).filter(a=>a.vorgangId!==id);
 }
+/* Kompletten Datenstand als Datei ablegen. Laeuft auch automatisch, bevor
+   im Stapel geloescht wird - dann liegt immer ein Stand von vorher bereit. */
+function sicherungHerunterladen(zusatz){
+  const blob = new Blob([JSON.stringify(Store.data,null,2)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "aqt-sicherung-"+ISO(new Date())+(zusatz?"-"+zusatz:"")+".json";
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* Firmen, an denen ein Vorgang haengt, sind vor dem Loeschen im Stapel
+   geschuetzt. Loeschen reisst alles Angehaengte mit - Objekte, Vorgaenge,
+   Aktivitaeten, Anhaenge - und genau so ist schon einmal die halbe Pipeline
+   verschwunden. Einzeln loeschen bleibt moeglich, im Stapel nicht. */
+function firmaHatVorgaenge(id){
+  return Store.data.vorgaenge.some(v => v.firmaId === id);
+}
+
 function firmenLoeschen(ids){
   const set = new Set(ids);
   const vIds = new Set(Store.data.vorgaenge.filter(v=>set.has(v.firmaId)).map(v=>v.id));
@@ -1340,7 +1346,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 19.08.2026 · B10</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 20.08.2026 · B11</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -1385,7 +1391,7 @@ const App = {
   seite:"pipeline",
   pipelineAnsicht:"board",   // board | faellig
   passiveZeigen:false,
-  firmenFilter:{ name:"", branche:"", gruppe:"", segment:"", kontaktweg:"", status:"", quelle:"", ort:"", plz:"" },
+  firmenFilter:{ name:"", branche:"", gruppe:"", segment:"", kontaktweg:"", status:"", quelle:"", ort:"", plz:"", keinAP:false },
   firmenSort:{ feld:"name", richtung:1 },
   auswahl:new Set(),
   aktOffen:new Set()      /* aufgeklappte Chronik-Einträge */
@@ -2910,7 +2916,8 @@ function firmenGefiltert(){
     (!f.segment    || x.segment===f.segment) &&
     (!f.kontaktweg || x.kontaktweg===f.kontaktweg) &&
     (!f.status     || x.status===f.status) &&
-    (!f.quelle     || x.quelle===f.quelle)
+    (!f.quelle     || x.quelle===f.quelle) &&
+    (!f.keinAP     || !istPersonenname(String(x.ansprechpartner||"")))
   ).sort((a,b)=>{
     const s = App.firmenSort || { feld:"name", richtung:1 };
     const wert = x => s.feld==="vorgaenge" ? DB.vorgaengeVon(x.id).length : String(x[s.feld]==null?"":x[s.feld]).toLowerCase();
@@ -2920,9 +2927,19 @@ function firmenGefiltert(){
   });
 }
 
+function apDotKlasse(f){
+  if(istPersonenname(String(f.ansprechpartner||""))) return "gruen";
+  const hatAnruf = DB.vorgaengeVon(f.id).some(v =>
+    DB.aktivitaetenVon(v.id).some(a => a.typ==="Anruf")
+  );
+  return hatAnruf ? "orange" : "grau";
+}
+
 function renderFirmen(){
+  const keinAPAnz = Store.data.firmen.filter(x=>!istPersonenname(String(x.ansprechpartner||""))).length;
   $("#pageActions").innerHTML =
     '<button class="btn" data-act="ausserhalb">Außerhalb Rhein-Main</button>'+
+    '<button class="btn'+(App.firmenFilter.keinAP?" active":"")+" kein-ap-btn"+'" data-act="kein-ap-filter">Kein Ansprechpartner ('+keinAPAnz+')</button>'+
     '<button class="btn" data-act="dub-pruefen">Dubletten prüfen</button>'+
     '<button class="btn" data-act="import-oeffnen">Liste importieren</button>'+
     '<button class="btn primary" data-act="firma-neu">+ Firma</button>';
@@ -2949,6 +2966,8 @@ function renderFirmen(){
       '<button class="btn sm" data-act="auswahl-alle">Alle '+liste.length+" gefilterten"+"</button>"+
       '<button class="btn sm ghost" style="color:#B9C9D4" data-act="auswahl-leeren">Aufheben</button>'+
       '<div style="flex:1"></div>'+
+      '<button class="btn sm" data-act="weg-aktiv">→ Aktiv</button>'+
+      '<button class="btn sm" data-act="weg-passiv">→ Passiv</button>'+
       '<button class="btn sm" data-act="serienbrief">Serienbrief-Export</button>'+
       '<button class="btn sm" data-act="digitalpost">Digitalpost (.xlsx)</button>'+
       '<button class="btn sm" data-act="brief-sammelvermerk">Brief vermerken</button>'+
@@ -2991,12 +3010,15 @@ function renderFirmen(){
       const sel = App.auswahl.has(x.id);
       h += "<tr"+(sel?' class="sel"':"")+">"+
         '<td><input type="checkbox" data-pick="'+x.id+'"'+(sel?" checked":"")+"></td>"+
-        '<td class="cellname"><button class="linkish" data-firma="'+x.id+'">'+esc(x.name||"(ohne Namen)")+"</button>"+
+        '<td class="cellname"><span class="ap-dot '+apDotKlasse(x)+'"></span><button class="linkish" data-firma="'+x.id+'">'+ esc(x.name||"(ohne Namen)")+"</button>"+
           (x.ansprechpartner?'<div class="tiny muted">'+esc(x.ansprechpartner)+"</div>":"")+"</td>"+
         "<td>"+(x.branche?esc(x.branche):'<span class="tiny muted">—</span>')+"</td>"+
         '<td>'+(x.gruppe?'<span class="tiny">'+esc(x.gruppe)+"</span>":'<span class="tiny muted">—</span>')+"</td>"+
         '<td>'+(x.segment?'<span class="chip">'+esc(x.segment)+"</span>":'<span class="tiny muted">—</span>')+"</td>"+
-        '<td><span class="chip'+(x.kontaktweg==="Aktiv"?" accent":"")+'">'+esc(x.kontaktweg)+"</span></td>"+
+        '<td><button class="chip wegchip'+(x.kontaktweg==="Aktiv"?" accent":"")+
+          '" data-weg-um="'+x.id+'" title="Umschalten auf '+
+          (x.kontaktweg==="Aktiv"?"Passiv (Brief)":"Aktiv (Telefon)")+'">'+
+          esc(x.kontaktweg)+"</button></td>"+
         "<td>"+statusChip(x.status)+"</td>"+
         "<td>"+(x.quelle?'<span class="tiny">'+esc(x.quelle)+"</span>":'<span class="tiny muted">—</span>')+"</td>"+
         '<td class="mono tiny">'+esc(x.plz||"")+"</td>"+
@@ -3484,8 +3506,6 @@ function importAusfuehren(){
     if(ausSkip && zell("AUSSCHLUSS")){ ausgelassen++; uebersprungen++; continue; }
 
     const kat = w("kategorie") || w("branche") || name;
-    let weg = setWeg || w("kontaktweg");
-    if(!WEGE.includes(weg)) weg = wegVorschlag(kat);
 
     /* Fremde Branchenbezeichnung übersetzen statt verwerfen */
     let branche = setBranche;
@@ -3499,6 +3519,11 @@ function importAusfuehren(){
     const grosspraxis = /ja/i.test(zell("GROSSPRAXIS"));
     const gruppe  = gruppeVorschlag(w("branche") || kat, grosspraxis);
     const segment = segmentAusFlags(zeile, H);
+
+    /* Der Kontaktweg haengt am Segment, nicht mehr an der Branche. Steht in
+       der Liste ausdruecklich etwas, gilt das. */
+    let weg = setWeg || w("kontaktweg");
+    if(!WEGE.includes(weg)) weg = wegVorschlag(segment);
 
     /* Anrede kommt fertig aus der Liste und ist dort schon nach
        Namensqualitaet gefiltert. Sicherheitshalber: nur bei BRIEFFAEHIG
@@ -4333,8 +4358,20 @@ function abschlussDialog(v, art){
 /* ---------- 15. Ereignisse ------------------------------------ */
 document.addEventListener("click", e => {
   if(e.target.closest("a[href]")) return;   /* echte Links normal durchlassen */
-  const t = e.target.closest("[data-go],[data-act],[data-vorgang],[data-firma],[data-close],[data-ansicht],[data-wv-done],[data-wv-del],[data-akt-del],[data-akt-auf],[data-objekt],[data-objekt-del],[data-sort],[data-dub-del]");
+  const t = e.target.closest("[data-go],[data-act],[data-vorgang],[data-firma],[data-close],[data-ansicht],[data-wv-done],[data-wv-del],[data-akt-del],[data-akt-auf],[data-objekt],[data-objekt-del],[data-sort],[data-dub-del],[data-weg-um]");
   if(!t) return;
+
+  /* Kontaktweg direkt in der Liste umschalten, ohne die Firma zu oeffnen. */
+  const wegUm = t.getAttribute("data-weg-um");
+  if(wegUm){
+    const f = DB.firma(wegUm);
+    if(f){
+      f.kontaktweg = f.kontaktweg === "Aktiv" ? "Passiv" : "Aktiv";
+      Store.save(); render();
+      toast(f.name+": "+f.kontaktweg);
+    }
+    return;
+  }
 
   const so = t.getAttribute("data-sort");
   if(so){ if(App.firmenSort && App.firmenSort.feld===so) App.firmenSort.richtung*=-1; else App.firmenSort={feld:so,richtung:1}; render(); return; }
@@ -4642,19 +4679,65 @@ function aktion(act, el){
       }
       return;
     }
+    case "kein-ap-filter": {
+      App.firmenFilter.keinAP = !App.firmenFilter.keinAP;
+      App.auswahl.clear();
+      render();
+      if(App.firmenFilter.keinAP){
+        const n = firmenGefiltert().length;
+        toast(n ? n+" Firma"+(n>1?"n":"")+" ohne Ansprechpartner" : "Alle haben einen Ansprechpartner – super!");
+      }
+      return;
+    }
+    case "weg-aktiv": case "weg-passiv": {
+      /* Kontaktweg fuer die ganze Auswahl setzen, ohne jede Firma zu oeffnen. */
+      const ziel = act === "weg-aktiv" ? "Aktiv" : "Passiv";
+      let geaendert = 0;
+      for (const f of Store.data.firmen){
+        if(App.auswahl.has(f.id) && f.kontaktweg !== ziel){ f.kontaktweg = ziel; geaendert++; }
+      }
+      if(geaendert){ Store.save(); render(); toast(geaendert+" auf "+ziel+" gesetzt"); }
+      else toast("Alle stehen schon auf "+ziel);
+      return;
+    }
     case "auswahl-alle": { firmenGefiltert().forEach(x=>App.auswahl.add(x.id)); render(); return; }
     case "auswahl-leeren": { App.auswahl.clear(); render(); return; }
     case "dub-pruefen": { dublettenZeigen(); return; }
     case "auswahl-loeschen": {
       const ids = [...App.auswahl];
-      const vAnz = Store.data.vorgaenge.filter(v=>App.auswahl.has(v.firmaId)).length;
-      bestaetigen(ids.length+" Firmen löschen?",
-        "Entfernt auch die verknüpften Objekte und "+vAnz+" Vorgänge. Das lässt sich nicht rückgängig machen.",
-        "Endgültig löschen",
-        ()=>{ firmenLoeschen(ids); App.auswahl.clear(); Store.save(); render(); toast(ids.length+" Firmen gelöscht"); });
+      const geschuetzt = ids.filter(firmaHatVorgaenge);
+      const loeschbar  = ids.filter(id => !firmaHatVorgaenge(id));
+
+      if(!loeschbar.length){
+        toast(geschuetzt.length===1
+          ? "Diese Firma hat einen Vorgang und bleibt stehen"
+          : "Alle "+geschuetzt.length+" haben Vorgänge und bleiben stehen");
+        return;
+      }
+
+      let text = loeschbar.length+" Firmen werden entfernt, samt ihrer Objekte.";
+      if(geschuetzt.length){
+        const namen = geschuetzt.slice(0,5)
+          .map(id => { const f=DB.firma(id); return f?f.name:""; })
+          .filter(Boolean).join(", ");
+        text += " "+geschuetzt.length+(geschuetzt.length===1?" Firma bleibt":" Firmen bleiben")+
+          " stehen, weil dort Vorgänge hängen"+(namen?": "+namen:"")+
+          (geschuetzt.length>5?" und weitere":"")+
+          ". Die lassen sich nur einzeln löschen.";
+      }
+      text += " Vorher wird eine Sicherung heruntergeladen.";
+
+      bestaetigen(loeschbar.length+" Firmen löschen?", text, "Endgültig löschen",
+        ()=>{
+          sicherungHerunterladen("vor-loeschen");
+          firmenLoeschen(loeschbar);
+          App.auswahl.clear(); Store.save(); render();
+          toast(loeschbar.length+" Firmen gelöscht"+
+            (geschuetzt.length?", "+geschuetzt.length+" mit Vorgängen behalten":""));
+        });
       return;
     }
-    case "filter-reset": { App.firmenFilter={name:"",branche:"",gruppe:"",segment:"",kontaktweg:"",status:"",quelle:"",ort:"",plz:""}; render(); return; }
+    case "filter-reset": { App.firmenFilter={name:"",branche:"",gruppe:"",segment:"",kontaktweg:"",status:"",quelle:"",ort:"",plz:"",keinAP:false}; render(); return; }
 
     /* --- Serienbrief Track Passiv (Abschnitt 9b) --- */
     case "serienbrief": { serienbriefExport([...App.auswahl]); return; }
@@ -4734,14 +4817,7 @@ function aktion(act, el){
                        .catch(e=>toast("Fehler: "+e.message)); });
       return;
     }
-    case "export": {
-      const blob = new Blob([JSON.stringify(Store.data,null,2)],{type:"application/json"});
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "aqt-sicherung-"+ISO(new Date())+".json";
-      a.click(); URL.revokeObjectURL(a.href);
-      toast("Sicherung heruntergeladen"); return;
-    }
+    case "export": { sicherungHerunterladen(); toast("Sicherung heruntergeladen"); return; }
     case "import-json": {
       const inp = document.createElement("input");
       inp.type="file"; inp.accept=".json";

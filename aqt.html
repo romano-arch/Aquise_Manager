@@ -88,7 +88,6 @@ h3{font-size:14px}
 .btn.danger:hover{filter:brightness(.92)}
 .btn.ghost{background:none; border-color:transparent; color:var(--ink-2)}
 .btn.ghost:hover{background:var(--surface-3); color:var(--ink)}
-.btn.active{background:#FEF3DC; border-color:#E8A830; color:#7A5200}
 .btn.sm{padding:4px 9px; font-size:12.5px}
 .btn:disabled{opacity:.45; cursor:not-allowed}
 
@@ -185,10 +184,6 @@ table.data tbody tr:hover{background:var(--surface-2)}
 table.data tr.sel{background:var(--accent-soft)}
 table.data tr.sel:hover{background:#D7E7F1}
 .cellname{font-weight:600}
-.ap-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle;flex-shrink:0}
-.ap-dot.gruen{background:#3ECF8E}
-.ap-dot.orange{background:#E8A830}
-.ap-dot.grau{background:var(--line-strong)}
 .linkish{background:none;border:0;padding:0;color:var(--accent);font-weight:600;text-align:left;text-decoration:underline;text-underline-offset:2px}
 .konlinks{display:flex;gap:10px;flex-wrap:wrap}
 .konlinks a{font-size:12px;white-space:nowrap;color:var(--accent);text-decoration:none;font-weight:600}
@@ -924,6 +919,15 @@ const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<"
 const heute = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
 function ISO(d){ const x=new Date(d); return isNaN(x)?"":x.toISOString().slice(0,10); }
 function plusTage(n, ab){ const d = ab?new Date(ab):heute(); d.setDate(d.getDate()+n); return ISO(d); }
+
+/* Einzige Quelle fuer die Nachfassfrist eines Vorgangs. Reihenfolge:
+   Wert am Vorgang, sonst Vorlage, sonst 10 Kalendertage. Alle Stellen,
+   die eine Wiedervorlage zum Angebot setzen, fragen hier. */
+function nachfassFrist(v){
+  let t = Number((v||{}).nachfassTage);
+  if(!t && typeof Vorlagen!=="undefined") t = Number(Vorlagen.aktuell().nachfassTage);
+  return Math.min(90, Math.max(1, t || 10));
+}
 function plusMonate(n, ab){ const d = ab?new Date(ab):heute(); d.setMonth(d.getMonth()+n); return ISO(d); }
 function fmtDatum(iso){
   if(!iso) return "";
@@ -1012,7 +1016,8 @@ function sbVorgangZuApp(r){ return {
   absagegrund:r.absagegrund||"",
   vertragsendeWettbewerb:r.vertragsende_wettbewerb||"",
   anfrageAm:r.anfrage_am||"", frist:r.frist||"", angebotAm:r.angebot_am||"",
-  nachfassTage:r.nachfass_tage||7, nachfassStufe:r.nachfass_stufe||0,
+  nachfassTage:r.nachfass_tage||0, nachfassStufe:r.nachfass_stufe||0,
+  nachfassLetzte:r.nachfass_letzte||"",
   notiz:r.notiz||"", mailText:r.mail_text||"",
   wiedervorlagen:r.wiedervorlagen||[], angelegt:r.angelegt||""
 };}
@@ -1022,7 +1027,8 @@ function appVorgangZuSb(v){ return {
   herkunft:v.herkunft, ergebnis:v.ergebnis, absagegrund:v.absagegrund,
   vertragsende_wettbewerb:v.vertragsendeWettbewerb||null,
   anfrage_am:v.anfrageAm||null, frist:v.frist||null, angebot_am:v.angebotAm||null,
-  nachfass_tage:Number(v.nachfassTage)||7, nachfass_stufe:Number(v.nachfassStufe)||0,
+  nachfass_tage:Number(v.nachfassTage)||null, nachfass_stufe:Number(v.nachfassStufe)||0,
+  nachfass_letzte:v.nachfassLetzte||null,
   notiz:v.notiz, mail_text:v.mailText||"", wiedervorlagen:v.wiedervorlagen||[]
 };}
 function sbAktZuApp(r){ return {
@@ -1113,7 +1119,7 @@ function neuerVorgang(p){
     kontaktweg:"Aktiv", herkunft:"Kaltakquise", ergebnis:"",
     absagegrund:"", vertragsendeWettbewerb:"", notiz:"", mailText:"",
     anfrageAm:"", frist:"", angebotAm:"", nachfassStufe:0,
-    nachfassTage: (typeof Vorlagen!=="undefined" && Number(Vorlagen.aktuell().nachfassTage)) || 7,
+    nachfassTage: (typeof Vorlagen!=="undefined" && Number(Vorlagen.aktuell().nachfassTage)) || 10,
     wiedervorlagen:[], angelegt:new Date().toISOString()
   }, p||{});
   Store.data.vorgaenge.push(v); return v;
@@ -1346,7 +1352,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 20.08.2026 · B11</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 08.09.2026 · B13</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -1391,7 +1397,7 @@ const App = {
   seite:"pipeline",
   pipelineAnsicht:"board",   // board | faellig
   passiveZeigen:false,
-  firmenFilter:{ name:"", branche:"", gruppe:"", segment:"", kontaktweg:"", status:"", quelle:"", ort:"", plz:"", keinAP:false },
+  firmenFilter:{ name:"", branche:"", gruppe:"", segment:"", kontaktweg:"", status:"", quelle:"", ort:"", plz:"" },
   firmenSort:{ feld:"name", richtung:1 },
   auswahl:new Set(),
   aktOffen:new Set()      /* aufgeklappte Chronik-Einträge */
@@ -1443,23 +1449,43 @@ function render(){
 }
 
 /* ---------- 6. Pipeline --------------------------------------- */
+
+/* Ein Vorgang ist ein „Deal", wenn er NICHT aus der Kaltakquise stammt
+   ODER wenn aus der Kaltakquise etwas Konkretes geworden ist.
+   Frueher reichte dafuer jede Stufe ausser „Neu" – damit verschwand ein
+   Kontakt schon nach dem ersten Telefonat aus der Anrufliste, obwohl noch
+   gar kein Angebot im Spiel war. Konkret heisst jetzt: es gibt eine Anfrage
+   oder ein Angebot, oder die Stufe ist Besichtigung/Angebot/Nachfass, oder
+   es wurde ein Auftrag gebucht. Eine Absage im Erstkontakt bleibt
+   Kaltakquise-Historie und wandert nicht ins Deal-Board. */
+function istDeal(v){
+  if(v.herkunft && v.herkunft !== "Kaltakquise") return true;
+  if(v.anfrageAm || v.angebotAm) return true;
+  if(["besichtigung","angebot_versendet","nachfass"].indexOf(v.stufe) >= 0) return true;
+  if(v.stufe === "abschluss" && v.ergebnis === "gewonnen") return true;
+  return false;
+}
+
 function renderPipeline(){
   $("#pageActions").innerHTML =
     '<button class="btn" data-act="mail-neu">Anfrage aus E-Mail</button>'+
     '<button class="btn primary" data-act="vorgang-neu">+ Vorgang</button>';
 
   const alle = Store.data.vorgaenge;
-  const sichtbar = alle.filter(v => App.passiveZeigen || v.kontaktweg!=="Passiv" || v.ergebnis);
-  const passivAnzahl = alle.filter(v=>v.kontaktweg==="Passiv").length;
+  const deals    = alle.filter(v => istDeal(v));
+  const akquise  = alle.filter(v => !istDeal(v) && !v.ergebnis);
+  const faellige = alle.filter(v => !v.ergebnis && wvNaechste(v));
+
+  /* Ansicht "board" aus altem Stand auf "deals" migrieren */
+  if(App.pipelineAnsicht === "board") App.pipelineAnsicht = "deals";
 
   let h = '<div id="eingangBox"></div>'+
     '<div class="toolbar">'+
     '<div class="seg">'+
-      '<button data-ansicht="board" class="'+(App.pipelineAnsicht==="board"?"on":"")+'">Kanban</button>'+
-      '<button data-ansicht="faellig" class="'+(App.pipelineAnsicht==="faellig"?"on":"")+'">Fällige Liste</button>'+
+      '<button data-ansicht="deals" class="'+(App.pipelineAnsicht==="deals"?"on":"")+'">Deals <span class="chip">'+deals.filter(v=>!v.ergebnis).length+'</span></button>'+
+      '<button data-ansicht="akquise" class="'+(App.pipelineAnsicht==="akquise"?"on":"")+'">Akquise <span class="chip">'+akquise.length+'</span></button>'+
+      '<button data-ansicht="faellig" class="'+(App.pipelineAnsicht==="faellig"?"on":"")+'">Fällige Liste <span class="chip">'+faellige.length+'</span></button>'+
     "</div>"+
-    '<label class="switch"><input type="checkbox" id="fPassiv"'+(App.passiveZeigen?" checked":"")+">"+
-      "Passive einblenden"+(passivAnzahl?' <span class="chip">'+passivAnzahl+"</span>":"")+"</label>"+
   "</div>";
 
   if(!alle.length){
@@ -1471,22 +1497,124 @@ function renderPipeline(){
     $("#content").innerHTML = h; return;
   }
 
-  h += App.pipelineAnsicht==="board" ? boardHTML(sichtbar) : faelligHTML();
+  if(App.pipelineAnsicht === "deals")        h += boardHTML(deals);
+  else if(App.pipelineAnsicht === "akquise") h += akquiseHTML(akquise);
+  else                                       h += faelligHTML();
+
   $("#content").innerHTML = h;
 }
+
+/* Sortier-Gewicht: überfällig zuerst, dann bald fällig, dann Rest.
+   Innerhalb gleicher Dringlichkeit nach Wiedervorlage-Datum aufsteigend. */
+function kartenSortiert(arr){
+  const gew = v => {
+    const dr = dringlichkeit(v);
+    if(dr==="crit") return 0;
+    if(dr==="warn") return 1;
+    const w = wvNaechste(v);
+    return w ? 2 : 3;           /* ohne WV ganz unten */
+  };
+  return arr.slice().sort((a,b) => {
+    const d = gew(a) - gew(b);
+    if(d !== 0) return d;
+    const wa = wvNaechste(a), wb = wvNaechste(b);
+    if(wa && wb) return wa.datum.localeCompare(wb.datum);
+    return 0;
+  });
+}
+
+const BOARD_LIMIT = 6;                  /* sichtbare Karten pro Spalte */
+if(!App.boardOffen) App.boardOffen = new Set();  /* aufgeklappte Spalten */
 
 function boardHTML(liste){
   let h = '<div class="board" id="board">';
   for (const st of STUFEN){
-    const karten = liste.filter(v=>v.stufe===st.id);
+    const karten = kartenSortiert(liste.filter(v=>v.stufe===st.id));
+    const offen = App.boardOffen.has(st.id);
+    const sichtbar = offen ? karten : karten.slice(0, BOARD_LIMIT);
+    const rest = karten.length - sichtbar.length;
     h += '<section class="col" data-stufe="'+st.id+'">'+
       '<div class="col-head"><span class="n mono">'+(STUFEN.indexOf(st)+1)+'</span>'+
       '<span class="t">'+esc(st.name)+'</span><span class="c">'+karten.length+"</span></div>";
-    h += karten.length ? karten.map(vcardHTML).join("")
+    h += sichtbar.length ? sichtbar.map(vcardHTML).join("")
        : '<div class="col-empty">leer</div>';
+    if(rest > 0)
+      h += '<button class="btn ghost board-mehr" data-mehr="'+st.id+
+        '" style="width:100%;margin-top:6px;font-size:12px">'+rest+' weitere anzeigen ▾</button>';
+    if(offen && karten.length > BOARD_LIMIT)
+      h += '<button class="btn ghost board-mehr" data-weniger="'+st.id+
+        '" style="width:100%;margin-top:4px;font-size:12px">Weniger ▴</button>';
     h += "</section>";
   }
   return h + "</div>";
+}
+
+/* ---------- Akquise-Ansicht: Anrufliste + Statistik ----------- */
+function akquiseHTML(liste){
+  const enriched = liste.map(v => {
+    const f = DB.firma(v.firmaId) || {};
+    const w = wvNaechste(v);
+    const dr = dringlichkeit(v);
+    const akt = DB.aktivitaetenVon(v.id);
+    const letzteAkt = akt.length ? akt.sort((a,b)=>b.datum.localeCompare(a.datum))[0] : null;
+    return { v, f, w, dr, letzteAkt };
+  });
+
+  /* Sortierung: überfällige zuerst, dann fällige, dann Rest */
+  enriched.sort((a,b) => {
+    const ga = a.dr==="crit"?0:a.dr==="warn"?1:a.w?2:3;
+    const gb = b.dr==="crit"?0:b.dr==="warn"?1:b.w?2:3;
+    if(ga!==gb) return ga-gb;
+    if(a.w && b.w) return a.w.datum.localeCompare(b.w.datum);
+    return (a.f.name||"").localeCompare(b.f.name||"");
+  });
+
+  const mitWV = enriched.filter(x=>x.w).length;
+  const ueberfaellig = enriched.filter(x=>x.dr==="crit").length;
+  const aktiv = enriched.filter(x=>x.v.kontaktweg==="Aktiv").length;
+  const passiv = enriched.filter(x=>x.v.kontaktweg!=="Aktiv").length;
+
+  let h = '<div style="display:flex;gap:20px;margin:12px 0 16px;flex-wrap:wrap">'+
+    '<div class="tiny"><strong>'+enriched.length+'</strong> Kaltakquise-Vorgänge</div>'+
+    '<div class="tiny">Telefon (Aktiv): <strong>'+aktiv+'</strong></div>'+
+    '<div class="tiny">Brief (Passiv): <strong>'+passiv+'</strong></div>'+
+    (ueberfaellig ? '<div class="tiny" style="color:var(--crit)"><strong>'+ueberfaellig+'</strong> überfällig</div>' : '')+
+  '</div>';
+
+  if(!enriched.length){
+    return h + '<div class="empty"><h3>Keine Kaltakquise-Vorgänge</h3>'+
+      '<p>Hier erscheinen Vorgänge mit Herkunft „Kaltakquise" in der Stufe „Neu".</p></div>';
+  }
+
+  h += '<div class="tbl-wrap"><table class="tbl"><thead><tr>'+
+    '<th style="width:24px"></th>'+
+    '<th>Firma</th>'+
+    '<th>Weg</th>'+
+    '<th>AP / Telefon</th>'+
+    '<th>Wiedervorlage</th>'+
+    '<th>Letzter Kontakt</th>'+
+    '</tr></thead><tbody>';
+
+  for(const x of enriched){
+    const telNr = (x.f.telefon||"").trim();
+    const ap = (x.f.ansprechpartner||"").trim();
+    const cls = x.dr==="crit" ? ' style="background:var(--crit-soft)"'
+              : x.dr==="warn" ? ' style="background:var(--warn-soft)"' : '';
+
+    h += '<tr'+cls+' data-vorgang="'+x.v.id+'" style="cursor:pointer">'+
+      '<td>'+(x.dr==="crit"?'<span style="color:var(--crit)">●</span>':x.dr==="warn"?'<span style="color:var(--warn)">●</span>':'<span style="color:var(--ink-3)">○</span>')+'</td>'+
+      '<td><strong>'+esc(x.f.name||"—")+'</strong>'+
+        (x.f.ort ? '<div class="tiny muted">'+esc(x.f.ort)+'</div>' : '')+'</td>'+
+      '<td><span class="chip'+(x.v.kontaktweg==="Aktiv"?" accent":"")+'">'+esc(x.v.kontaktweg||"—")+'</span></td>'+
+      '<td>'+(ap ? esc(ap) : '<span class="muted tiny">kein AP</span>')+
+        (telNr ? '<div><a href="tel:'+esc(telUrl(telNr))+'" class="tiny" onclick="event.stopPropagation()">☎ '+esc(telNr)+'</a></div>' : '')+'</td>'+
+      '<td>'+(x.w ? '<span class="chip '+(x.dr==="crit"?"crit":x.dr==="warn"?"warn":"")+'">'+esc(relativ(x.w.datum))+'</span>'+
+        '<div class="tiny muted">'+esc(x.w.anlass||"")+'</div>' : '<span class="muted tiny">—</span>')+'</td>'+
+      '<td>'+(x.letzteAkt ? '<div class="tiny">'+esc(x.letzteAkt.typ)+' · '+esc(fmtDatum(x.letzteAkt.datum))+'</div>' : '<span class="muted tiny">—</span>')+'</td>'+
+    '</tr>';
+  }
+  h += '</tbody></table></div>';
+  return h;
 }
 
 function vcardHTML(v){
@@ -1911,7 +2039,7 @@ function jetztKasten(v){
   let fuss = "";
   if(v.angebotAm && !v.ergebnis)
     fuss = '<span>Nachfassen nach <input type="number" id="vNachfassTage" min="1" max="90" value="'+
-      (Number(v.nachfassTage)||7)+'" style="width:52px;padding:2px 6px;display:inline-block"> Tagen</span>'+
+      nachfassFrist(v)+'" style="width:52px;padding:2px 6px;display:inline-block"> Tagen</span>'+
       (Number(v.nachfassStufe) ? "<span>· zuletzt versendet: Stufe "+Number(v.nachfassStufe)+
         " – "+esc(NACHFASS[Number(v.nachfassStufe)-1].kurz)+"</span>" : "");
   return '<div class="jetzt '+s.ton+'">'+
@@ -1931,7 +2059,7 @@ function vorgangFelderLesen(v){
   set("vertragsendeWettbewerb","#vVertragsende"); set("notiz","#vNotiz");
   set("anfrageAm","#vAnfrageAm"); set("frist","#vFrist"); set("angebotAm","#vAngebotAm");
   const nt = g("#vNachfassTage");
-  if(nt!==undefined) v.nachfassTage = Math.min(90, Math.max(1, Number(nt)||7));
+  if(nt!==undefined) v.nachfassTage = Math.min(90, Math.max(1, Number(nt)||10));
 }
 
 /* ---------- 7d. Termine und Nachfass-Automatik -----------------
@@ -1941,7 +2069,7 @@ function vorgangFelderLesen(v){
 ------------------------------------------------------------------- */
 function nachfassFaellig(v){
   if(!v.angebotAm) return "";
-  const tage = Math.min(90, Math.max(1, Number(v.nachfassTage)||7));
+  const tage = nachfassFrist(v);
   const stufe = Number(v.nachfassStufe)||0;
   if(stufe >= 3) return "";
   const ab = stufe ? (v.nachfassLetzte || v.angebotAm) : v.angebotAm;
@@ -1967,7 +2095,7 @@ function terminAutomatik(v, altFrist, altAngebot){
     /* offene Frist-Erinnerungen abhaken, das Angebot ist ja raus */
     for (const x of (v.wiedervorlagen||[]))
       if(!x.erledigt && (x.anlass||"").indexOf("Angebot vor Frist") === 0) x.erledigt = true;
-    const tage = Math.min(90, Math.max(1, Number(v.nachfassTage)||7));
+    const tage = nachfassFrist(v);
     const offen = (v.wiedervorlagen||[]).some(x => !x.erledigt && (x.anlass||"").indexOf("Nachfassen") === 0);
     if(!offen){
       wvSetzen(v, plusTage(tage, v.angebotAm), "Nachfassen zum Angebot (Stufe 1)");
@@ -2096,7 +2224,7 @@ const VORLAGE_PLATZHALTER = [
 
 const VORLAGEN_STANDARD = {
   ich: "Romano",
-  nachfassTage: 7,
+  nachfassTage: 10,
   stufen: [
     {
       kurz:"Freundlich",
@@ -2153,7 +2281,7 @@ const VORLAGEN_SCHLUESSEL = "nachfass_vorlagen";
 function vorlagenSignatur(d){
   d = d || {};
   const s = Array.isArray(d.stufen) ? d.stufen : [];
-  const teile = [ String(d.ich||"").trim(), String(Number(d.nachfassTage)||7) ];
+  const teile = [ String(d.ich||"").trim(), String(Number(d.nachfassTage)||10) ];
   for(let i=0;i<3;i++){
     const x = s[i] || {};
     teile.push(String(x.kurz||""), String(x.name||""), String(x.betreff||""), String(x.text||""));
@@ -2267,7 +2395,7 @@ Vorlagen.status = { ort:"", zeit:"", fehler:"" };
 function vorlagenUnterschied(a, b){
   const namen = [];
   if(String((a||{}).ich||"").trim() !== String((b||{}).ich||"").trim()) namen.push("eigener Name");
-  if((Number((a||{}).nachfassTage)||7) !== (Number((b||{}).nachfassTage)||7)) namen.push("Standardtage");
+  if((Number((a||{}).nachfassTage)||10) !== (Number((b||{}).nachfassTage)||10)) namen.push("Standardtage");
   const sa = Array.isArray((a||{}).stufen) ? a.stufen : [];
   const sb = Array.isArray((b||{}).stufen) ? b.stufen : [];
   for(let i=0;i<3;i++){
@@ -2402,7 +2530,7 @@ function nachfassEingetragen(){
   for (const x of (v.wiedervorlagen||[]))
     if(!x.erledigt && (x.anlass||"").indexOf("Nachfassen") === 0) x.erledigt = true;
 
-  const tage = Math.min(90, Math.max(1, Number(v.nachfassTage)||7));
+  const tage = nachfassFrist(v);
   if(stufe < 3){
     wvSetzen(v, plusTage(tage), "Nachfassen zum Angebot (Stufe "+(stufe+1)+")");
     toast("Eingetragen · Stufe "+(stufe+1)+" in "+tage+" Tagen vorgemerkt");
@@ -2860,12 +2988,16 @@ function leitErgebnis(art){
     });
 }
 
-/* Automatik: Angebot versendet -> Wiedervorlage +7 Tage, nur Aktiv (Abschnitt 6) */
+/* Automatik: Angebot versendet -> Wiedervorlage, nur Aktiv (Abschnitt 6).
+   Die Frist kommt aus dem Vorgang bzw. der Vorlage. Frueher stand hier
+   eine feste 7 – dadurch wich die Wiedervorlage von dem Datum ab, das
+   der Vorgang selbst anzeigte. */
 function stufenAutomatik(v, alteStufe){
   if(v.stufe==="angebot_versendet" && alteStufe!=="angebot_versendet"){
     if(v.kontaktweg==="Aktiv" && !wvNaechste(v)){
-      wvSetzen(v, plusTage(7), "Nachfassen zum Angebot");
-      toast("Wiedervorlage in 7 Tagen gesetzt");
+      const tage = nachfassFrist(v);
+      wvSetzen(v, plusTage(tage, v.angebotAm), "Nachfassen zum Angebot");
+      toast("Wiedervorlage in "+tage+" Tagen gesetzt");
     }
   }
 }
@@ -2916,8 +3048,7 @@ function firmenGefiltert(){
     (!f.segment    || x.segment===f.segment) &&
     (!f.kontaktweg || x.kontaktweg===f.kontaktweg) &&
     (!f.status     || x.status===f.status) &&
-    (!f.quelle     || x.quelle===f.quelle) &&
-    (!f.keinAP     || !istPersonenname(String(x.ansprechpartner||"")))
+    (!f.quelle     || x.quelle===f.quelle)
   ).sort((a,b)=>{
     const s = App.firmenSort || { feld:"name", richtung:1 };
     const wert = x => s.feld==="vorgaenge" ? DB.vorgaengeVon(x.id).length : String(x[s.feld]==null?"":x[s.feld]).toLowerCase();
@@ -2927,19 +3058,9 @@ function firmenGefiltert(){
   });
 }
 
-function apDotKlasse(f){
-  if(istPersonenname(String(f.ansprechpartner||""))) return "gruen";
-  const hatAnruf = DB.vorgaengeVon(f.id).some(v =>
-    DB.aktivitaetenVon(v.id).some(a => a.typ==="Anruf")
-  );
-  return hatAnruf ? "orange" : "grau";
-}
-
 function renderFirmen(){
-  const keinAPAnz = Store.data.firmen.filter(x=>!istPersonenname(String(x.ansprechpartner||""))).length;
   $("#pageActions").innerHTML =
     '<button class="btn" data-act="ausserhalb">Außerhalb Rhein-Main</button>'+
-    '<button class="btn'+(App.firmenFilter.keinAP?" active":"")+" kein-ap-btn"+'" data-act="kein-ap-filter">Kein Ansprechpartner ('+keinAPAnz+')</button>'+
     '<button class="btn" data-act="dub-pruefen">Dubletten prüfen</button>'+
     '<button class="btn" data-act="import-oeffnen">Liste importieren</button>'+
     '<button class="btn primary" data-act="firma-neu">+ Firma</button>';
@@ -3010,7 +3131,7 @@ function renderFirmen(){
       const sel = App.auswahl.has(x.id);
       h += "<tr"+(sel?' class="sel"':"")+">"+
         '<td><input type="checkbox" data-pick="'+x.id+'"'+(sel?" checked":"")+"></td>"+
-        '<td class="cellname"><span class="ap-dot '+apDotKlasse(x)+'"></span><button class="linkish" data-firma="'+x.id+'">'+ esc(x.name||"(ohne Namen)")+"</button>"+
+        '<td class="cellname"><button class="linkish" data-firma="'+x.id+'">'+esc(x.name||"(ohne Namen)")+"</button>"+
           (x.ansprechpartner?'<div class="tiny muted">'+esc(x.ansprechpartner)+"</div>":"")+"</td>"+
         "<td>"+(x.branche?esc(x.branche):'<span class="tiny muted">—</span>')+"</td>"+
         '<td>'+(x.gruppe?'<span class="tiny">'+esc(x.gruppe)+"</span>":'<span class="tiny muted">—</span>')+"</td>"+
@@ -4111,7 +4232,7 @@ function renderSetup(){
         '<div class="field"><label>Eigener Name (wird für {ich} eingesetzt)</label>'+
           '<input type="text" id="vlIch" value="'+esc(Vorlagen.aktuell().ich||"")+'"></div>'+
         '<div class="field"><label>Nachfassen standardmäßig nach … Tagen</label>'+
-          '<input type="number" id="vlTage" min="1" max="90" value="'+(Number(Vorlagen.aktuell().nachfassTage)||7)+'"></div>'+
+          '<input type="number" id="vlTage" min="1" max="90" value="'+(Number(Vorlagen.aktuell().nachfassTage)||10)+'"></div>'+
       "</div>"+
       '<div class="hint" style="margin-bottom:14px"><b>Platzhalter</b> – in geschweiften Klammern schreiben, '+
         "das Tool setzt beim Öffnen die echten Angaben ein:<br>"+
@@ -4241,7 +4362,7 @@ function vorlagenFelderLesen(){
   const d = Vorlagen.aktuell();
   const w = s => { const el = $(s); return el ? el.value : undefined; };
   const ich = w("#vlIch");   if(ich !== undefined) d.ich = ich.trim();
-  const tg  = w("#vlTage");  if(tg  !== undefined) d.nachfassTage = Math.min(90, Math.max(1, Number(tg)||7));
+  const tg  = w("#vlTage");  if(tg  !== undefined) d.nachfassTage = Math.min(90, Math.max(1, Number(tg)||10));
   if(!Array.isArray(d.stufen)) d.stufen = Vorlagen.standard().stufen;
   for(let i=0;i<3;i++){
     const s = d.stufen[i] || (d.stufen[i] = Vorlagen.standard().stufen[i]);
@@ -4282,16 +4403,38 @@ function vorlagenVorschau(stufe){
 
 /* ---------- 14. Dialog-Schicht -------------------------------- */
 let LayerCtx = {};
+/* Wird gesetzt, sobald im offenen Dialog irgendein Feld angefasst wurde.
+   Nur dann fragt das Schliessen nach. Jedes Oeffnen und jedes Speichern
+   setzt die Markierung zurueck. */
+let LayerBeruehrt = false;
 function layerZeigen(html, ctx, zentriert){
   LayerCtx = ctx || {};
+  LayerBeruehrt = false;
   $("#layer").innerHTML = '<div class="overlay'+(zentriert?" modal-center":"")+'" id="overlay">'+html+"</div>";
   document.body.style.overflow="hidden";
 }
 function layerSchliessen(){
   entwuerfeVerwerfen();
+  LayerBeruehrt = false;
   $("#layer").innerHTML = ""; LayerCtx = {};
   document.body.style.overflow="";
 }
+/* Abbrechen-Weg: Escape und alle Abbrechen-/Zurueck-Knoepfe. Speichern
+   ruft weiterhin direkt layerSchliessen() auf und fragt nichts. */
+function layerAbbrechen(){
+  if(LayerBeruehrt &&
+     !window.confirm("Dieser Dialog hat ungespeicherte \u00c4nderungen.\n\nWirklich schliessen und verwerfen?"))
+    return;
+  layerSchliessen();
+}
+/* Eingaben im Dialog merken. Ein Klick auf einen Knopf zaehlt nicht,
+   nur echtes Tippen oder Auswaehlen. */
+document.addEventListener("input", e => {
+  if(!LayerBeruehrt && $("#overlay") && $("#overlay").contains(e.target)) LayerBeruehrt = true;
+}, true);
+document.addEventListener("change", e => {
+  if(!LayerBeruehrt && $("#overlay") && $("#overlay").contains(e.target)) LayerBeruehrt = true;
+}, true);
 
 /* Ein neuer Vorgang bzw. eine neue Firma ist zunächst nur ein Entwurf.
    Wer den Dialog abbricht, soll keine leere Karteileiche hinterlassen. */
@@ -4358,7 +4501,7 @@ function abschlussDialog(v, art){
 /* ---------- 15. Ereignisse ------------------------------------ */
 document.addEventListener("click", e => {
   if(e.target.closest("a[href]")) return;   /* echte Links normal durchlassen */
-  const t = e.target.closest("[data-go],[data-act],[data-vorgang],[data-firma],[data-close],[data-ansicht],[data-wv-done],[data-wv-del],[data-akt-del],[data-akt-auf],[data-objekt],[data-objekt-del],[data-sort],[data-dub-del],[data-weg-um]");
+  const t = e.target.closest("[data-go],[data-act],[data-vorgang],[data-firma],[data-close],[data-ansicht],[data-wv-done],[data-wv-del],[data-akt-del],[data-akt-auf],[data-objekt],[data-objekt-del],[data-sort],[data-dub-del],[data-weg-um],[data-mehr],[data-weniger]");
   if(!t) return;
 
   /* Kontaktweg direkt in der Liste umschalten, ohne die Firma zu oeffnen. */
@@ -4373,6 +4516,12 @@ document.addEventListener("click", e => {
     return;
   }
 
+  /* Kanban-Spalte auf-/zuklappen */
+  const mehr = t.getAttribute("data-mehr");
+  if(mehr){ App.boardOffen.add(mehr); render(); return; }
+  const weniger = t.getAttribute("data-weniger");
+  if(weniger){ App.boardOffen.delete(weniger); render(); return; }
+
   const so = t.getAttribute("data-sort");
   if(so){ if(App.firmenSort && App.firmenSort.feld===so) App.firmenSort.richtung*=-1; else App.firmenSort={feld:so,richtung:1}; render(); return; }
 
@@ -4382,7 +4531,7 @@ document.addEventListener("click", e => {
   const go_ = t.getAttribute("data-go");
   if(go_){ go(go_); return; }
 
-  if(t.hasAttribute("data-close")){ layerSchliessen(); return; }
+  if(t.hasAttribute("data-close")){ layerAbbrechen(); return; }
 
   const ans = t.getAttribute("data-ansicht");
   if(ans){ App.pipelineAnsicht=ans; render(); return; }
@@ -4679,16 +4828,6 @@ function aktion(act, el){
       }
       return;
     }
-    case "kein-ap-filter": {
-      App.firmenFilter.keinAP = !App.firmenFilter.keinAP;
-      App.auswahl.clear();
-      render();
-      if(App.firmenFilter.keinAP){
-        const n = firmenGefiltert().length;
-        toast(n ? n+" Firma"+(n>1?"n":"")+" ohne Ansprechpartner" : "Alle haben einen Ansprechpartner – super!");
-      }
-      return;
-    }
     case "weg-aktiv": case "weg-passiv": {
       /* Kontaktweg fuer die ganze Auswahl setzen, ohne jede Firma zu oeffnen. */
       const ziel = act === "weg-aktiv" ? "Aktiv" : "Passiv";
@@ -4737,7 +4876,7 @@ function aktion(act, el){
         });
       return;
     }
-    case "filter-reset": { App.firmenFilter={name:"",branche:"",gruppe:"",segment:"",kontaktweg:"",status:"",quelle:"",ort:"",plz:"",keinAP:false}; render(); return; }
+    case "filter-reset": { App.firmenFilter={name:"",branche:"",gruppe:"",segment:"",kontaktweg:"",status:"",quelle:"",ort:"",plz:""}; render(); return; }
 
     /* --- Serienbrief Track Passiv (Abschnitt 9b) --- */
     case "serienbrief": { serienbriefExport([...App.auswahl]); return; }
@@ -4941,10 +5080,20 @@ document.addEventListener("drop", e => {
 });
 
 document.addEventListener("keydown", e => {
-  if(e.key==="Escape" && $("#overlay")) layerSchliessen();
+  if(e.key==="Escape" && $("#overlay")) layerAbbrechen();
 });
 
 
+
+/* Warnung, wenn das Fenster geschlossen wird, waehrend noch etwas
+   offen ist: unuebertragene Aenderungen oder ein angefasster Dialog. */
+window.addEventListener("beforeunload", e => {
+  let offen = 0;
+  try{ offen = (typeof Sync!=="undefined" && Sync.offen) ? Sync.offen() : 0; }catch(_){}
+  if(offen || (typeof Sync!=="undefined" && Sync.fehler) || LayerBeruehrt){
+    e.preventDefault(); e.returnValue = "";
+  }
+});
 
 /* ---------- 16. Start ----------------------------------------- */
 /* Beim Start: immer Login-Bildschirm zeigen.

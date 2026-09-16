@@ -190,6 +190,25 @@ table.data tr.sel:hover{background:#D7E7F1}
 .konlinks a:hover{text-decoration:underline}
 .minilink{font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:0;margin-left:6px;color:var(--accent)}
 .filterrow th{padding:5px 6px; background:var(--surface); border-bottom:1px solid var(--line-strong); position:static}
+
+/* Lange Listen: der Tabellenbereich bekommt eine eigene Hoehe und scrollt
+   fuer sich. Nur dadurch koennen Ueberschrift und Filterzeile stehen
+   bleiben – bei Seitenscroll haette „sticky" hier keinen Bezugspunkt.
+   Die Hoehe setzt tabelleFixieren() nach jedem Rendern. */
+.tablewrap.fixhead{overflow:auto}
+.tablewrap.fixhead thead th{position:sticky; z-index:5}
+.tablewrap.fixhead thead tr:first-child th{top:0; z-index:6}
+.tablewrap.fixhead tr.filterrow th{position:sticky; z-index:5}
+.tablewrap.fixhead tr.filterrow th::after{
+  content:""; position:absolute; left:0; right:0; bottom:-1px; height:1px; background:var(--line-strong);
+}
+/* Zeile ueber der Tabelle: Trefferzahl, bleibt immer sichtbar. */
+.listkopf{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:9px 12px; background:var(--surface-2); border-bottom:1px solid var(--line-strong);
+  font-size:12.5px; color:var(--ink-2);
+}
+.listkopf b{color:var(--ink); font-size:14px}
 .filterrow input,.filterrow select{padding:4px 6px; font-size:12.5px; background:var(--surface-2)}
 input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin:0}
 
@@ -676,15 +695,23 @@ const Store = {
     if(!this.data.meta) this.data.meta={};
   },
   save(){
-    this.backend.save(this.data);
+    let ok = this.backend.save(this.data) !== false;
     if(this.backend.id === "supabase"){
       /* Sicherheitsnetz: im Cloud-Modus zusaetzlich immer lokal spiegeln.
          Faellt der Cloud-Sync aus (Token abgelaufen, kein Netz), bleibt der
          Stand lokal erhalten und wird beim naechsten Login abgeglichen und
          hochgeladen. So geht nichts mehr verloren. */
-      try{ localStorage.setItem("aqt.v1", JSON.stringify(this.data)); }catch(_){}
+      try{ localStorage.setItem("aqt.v1", JSON.stringify(this.data)); }
+      catch(e){ ok = false; console.warn(e); }
+      /* B17: merken, welche Eintraege noch nicht in der Cloud sind */
+      Sync.offenMerken();
       Sync.anstossen();
     }
+    speicherWarnung("lokal", ok ? "" :
+      (this.backend.id === "supabase"
+        ? "Lokale Sicherung fehlgeschlagen (Browser-Speicher voll oder gesperrt). Bitte unter Einstellungen die Daten exportieren."
+        : "NICHT gespeichert – Browser-Speicher voll oder gesperrt. Bitte sofort unter Einstellungen die Daten exportieren."));
+    return ok;
   },
   replaceAll(d){ this.data = d; this.save(); }
 };
@@ -705,6 +732,29 @@ const SYNC_TABELLEN = [
   { schluessel:"anhaenge",     tabelle:"aqt_anhaenge",     zuSb:r => appAnhangZuSb(r)  }
 ];
 
+/* B17: Dauerhafter roter Balken bei Speicherfehlern. Bleibt stehen, bis
+   wieder erfolgreich gespeichert wurde – ein Toast ist nach 3 Sekunden weg. */
+const SpeicherWarn = { lokal:"", cloud:"" };
+function speicherWarnung(art, text){
+  SpeicherWarn[art] = text || "";
+  if(!document.body) return;
+  let el = document.getElementById("speicherWarn");
+  const txt = [SpeicherWarn.lokal, SpeicherWarn.cloud].filter(Boolean).join(" · ");
+  if(!txt){ if(el) el.remove(); return; }
+  if(!el){
+    el = document.createElement("div");
+    el.id = "speicherWarn";
+    el.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:100000;background:#E0554A;color:#fff;"+
+      "padding:8px 14px;font-size:13px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25)";
+    document.body.appendChild(el);
+  }
+  el.innerHTML = esc(txt)+(SpeicherWarn.cloud
+    ? ' <button id="speicherWarnRetry" style="margin-left:10px;padding:2px 10px;border:1px solid #fff;background:transparent;color:#fff;border-radius:4px;cursor:pointer">Erneut versuchen</button>'
+    : "");
+  const b = document.getElementById("speicherWarnRetry");
+  if(b) b.onclick = () => Sync.anstossen();
+}
+
 const Sync = {
   stand:  null,    // zuletzt übertragener Zustand: {firmen:Map(id -> JSON), …}
   laeuft: false,
@@ -720,11 +770,43 @@ const Sync = {
 
   momentaufnahme(t){
     const m = new Map();
-    for (const r of (Store.data[t.schluessel]||[])){
+    /* B17: auch alles, was an einem Entwurf haengt, bleibt draussen –
+       sonst scheitert der Upload am Fremdschluessel und blockiert den
+       gesamten Abgleich. */
+    const eF = new Set((Store.data.firmen||[]).filter(f=>f.entwurf).map(f=>f.id));
+    const eV = new Set((Store.data.vorgaenge||[]).filter(v=>v.entwurf || eF.has(v.firmaId)).map(v=>v.id));
+    const s = t.schluessel;
+    for (const r of (Store.data[s]||[])){
       if(r.entwurf) continue;                 // Entwürfe kommen nicht in die Datenbank
+      if((s==="objekte" || s==="vorgaenge") && eF.has(r.firmaId)) continue;
+      if((s==="aktivitaeten" || s==="anhaenge") && eV.has(r.vorgangId)) continue;
       m.set(r.id, JSON.stringify(t.zuSb(r)));
     }
     return m;
+  },
+
+  /* B17: Liste der noch nicht uebertragenen IDs pro Tabelle.
+     g = geaendert/neu, w = geloescht. */
+  offeneListe(){
+    if(!this.stand) return null;
+    const l = {};
+    for (const t of SYNC_TABELLEN){
+      const neu = this.momentaufnahme(t), alt = this.stand[t.schluessel] || new Map();
+      const g = [], w = [];
+      for (const [id,json] of neu) if(alt.get(id) !== json) g.push(id);
+      for (const id of alt.keys()) if(!neu.has(id)) w.push(id);
+      if(g.length || w.length) l[t.schluessel] = { g, w };
+    }
+    return l;
+  },
+  /* Wird lokal abgelegt. Beim naechsten Login gewinnt fuer genau diese
+     Eintraege der lokale Stand – auch wenn es sie in der Cloud schon gibt. */
+  offenMerken(){
+    try{
+      const l = this.offeneListe(); if(!l) return;
+      if(Object.keys(l).length) localStorage.setItem("aqt.offen", JSON.stringify(l));
+      else localStorage.removeItem("aqt.offen");
+    }catch(e){ console.warn(e); }
   },
 
   anstossen(){
@@ -732,11 +814,13 @@ const Sync = {
     if(this.laeuft){ this.nochmal = true; return; }
     this.laeuft = true; this.anzeigen();
     this.durchlauf()
-      .then(() => { this.fehler = null; })
+      .then(() => { this.fehler = null; speicherWarnung("cloud", ""); this.offenMerken(); })
       .catch(e => {
         this.fehler = e.message || String(e);
         console.error(e);
         toast("Nicht gespeichert: "+this.fehler);
+        speicherWarnung("cloud", "Nicht in der Cloud gespeichert: "+this.fehler+
+          " – Änderungen sind lokal gesichert und werden nachgeholt.");
       })
       .then(() => {
         this.laeuft = false; this.anzeigen();
@@ -967,8 +1051,17 @@ function relativ(iso){
   return "in "+t+" Tagen";
 }
 
+/* B17: Hinweise der Termin-Automatik werden an die naechste Meldung
+   angehaengt bzw. allein angezeigt, wenn keine folgt. */
+let AutoMeldung = "";
 function toast(text){
+  if(AutoMeldung){
+    text = text ? text+" · "+AutoMeldung : AutoMeldung;
+    AutoMeldung = "";
+  }
+  if(!text) return;
   const host=$("#toastHost");
+  if(!host) return;
   host.innerHTML = '<div class="toast">'+esc(text)+"</div>";
   clearTimeout(toast._t);
   toast._t = setTimeout(()=>host.innerHTML="", 2800);
@@ -1147,9 +1240,49 @@ function wvNaechste(v){
   if(!offen.length) return null;
   return offen.sort((a,b)=>a.datum.localeCompare(b.datum))[0];
 }
+/* B17: Abgeschlossene Vorgaenge haben eigene Termine (90-Tage-Check,
+   Empfehlung, Reaktivierung). Sie erscheinen in den Fällig-Listen erst
+   ab 3 Tagen vor dem Termin. */
+const ABSCHLUSS_ANLAESSE = ["90-Tage-Check nach Vertragsstart", "Empfehlung erfragen", "Nach Absage wieder ansprechen"];
+function inFaelligListe(v){
+  const w = wvNaechste(v); if(!w) return false;
+  if(!v.ergebnis) return true;
+  const t = tageBis(w.datum);
+  return t !== null && t <= 3;
+}
+/* Beim Abschluss: alles Offene abhaken (Nachfassen etc. ist erledigt) */
+function abschlussWvAbhaken(v){
+  for (const x of (v.wiedervorlagen||[])) if(!x.erledigt) x.erledigt = true;
+}
+/* Beim Wieder-Öffnen: nur die Abschluss-Termine abhaken */
+function abschlussTermineAbhaken(v){
+  for (const x of (v.wiedervorlagen||[]))
+    if(!x.erledigt && ABSCHLUSS_ANLAESSE.indexOf(x.anlass) >= 0) x.erledigt = true;
+}
+/* Einmalig pro Browser: bei bereits abgeschlossenen Vorgaengen alte,
+   überfällige Nachfass-Termine abhaken, damit sie nicht in „Fällig“ landen */
+function abschlussAltlasten(){
+  try{ if(localStorage.getItem("aqt.b17wv")) return 0; }catch(_){ return 0; }
+  let n = 0;
+  for (const v of Store.data.vorgaenge){
+    if(!v.ergebnis) continue;
+    for (const x of (v.wiedervorlagen||[])){
+      if(x.erledigt || ABSCHLUSS_ANLAESSE.indexOf(x.anlass) >= 0) continue;
+      const t = tageBis(x.datum);
+      if(t !== null && t < 0){ x.erledigt = true; n++; }
+    }
+  }
+  if(n) Store.save();
+  try{ localStorage.setItem("aqt.b17wv", "1"); }catch(_){}
+  return n;
+}
 function dringlichkeit(v){
-  if(v.ergebnis==="gewonnen") return "ok";
-  if(v.ergebnis==="verloren") return "";
+  if(v.ergebnis){
+    const wa = wvNaechste(v), ta = wa ? tageBis(wa.datum) : null;
+    if(ta !== null && ta < 0) return "crit";
+    if(ta !== null && ta <= 3) return "warn";
+    return v.ergebnis==="gewonnen" ? "ok" : "";
+  }
   const w = wvNaechste(v); if(!w) return "";
   const t = tageBis(w.datum);
   if(t===null) return "";
@@ -1159,7 +1292,6 @@ function dringlichkeit(v){
 }
 function faelligeVorgaenge(){
   return Store.data.vorgaenge
-    .filter(v => !v.ergebnis)
     .map(v => ({ v, w:wvNaechste(v) }))
     .filter(x => x.w && tageBis(x.w.datum) <= 3)
     .sort((a,b)=> a.w.datum.localeCompare(b.w.datum));
@@ -1308,6 +1440,8 @@ function loginZeigen(fehler){
     try{
       /* Lokale Daten sichern, bevor wir Store überschreiben */
       const lokal = JSON.parse(JSON.stringify(Store.data));
+      let offen = null;
+      try{ offen = JSON.parse(localStorage.getItem("aqt.offen") || "null"); }catch(_){ offen = null; }
       await SB.login(mail, pw);
       Store.backend = Backends.supabase;
       await sbLaden();
@@ -1318,6 +1452,27 @@ function loginZeigen(fehler){
          Frueher gingen lokale Vorgaenge verloren, sobald in der Cloud
          schon Firmen lagen. */
       let uebernommen = 0;
+      /* B17: Was beim letzten Mal nicht mehr in die Cloud kam, ist lokal
+         neuer als der Cloud-Stand. Diese Eintraege ersetzen die Cloud-
+         Version, lokal geloeschte werden entfernt. */
+      if(offen && typeof offen === "object"){
+        for (const t of SYNC_TABELLEN){
+          const s = t.schluessel, o = offen[s]; if(!o) continue;
+          if(!Array.isArray(Store.data[s])) Store.data[s] = [];
+          const w = new Set(o.w||[]), g = new Set(o.g||[]);
+          if(w.size){
+            const vor = Store.data[s].length;
+            Store.data[s] = Store.data[s].filter(r => !w.has(r.id));
+            uebernommen += vor - Store.data[s].length;
+          }
+          for (const r of (lokal[s]||[])){
+            if(!g.has(r.id) || r.entwurf) continue;
+            const i = Store.data[s].findIndex(x => x.id === r.id);
+            if(i >= 0) Store.data[s][i] = r; else Store.data[s].push(r);
+            uebernommen++;
+          }
+        }
+      }
       const einspielen = (schluessel) => {
         const da = new Set((Store.data[schluessel]||[]).map(r=>r.id));
         for(const r of (lokal[schluessel]||[])){
@@ -1352,7 +1507,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 08.09.2026 · B13</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 16.09.2026 · B17</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -1379,6 +1534,7 @@ function appStarten(){
   };
   App.seite="pipeline";
   fristenNachtragen();     /* alte Vorgänge: Frist aus der Notiz übernehmen */
+  abschlussAltlasten();    /* B17: alte Nachfass-Termine bei Abgeschlossenen abhaken */
   render();
   /* Vorlagen nachladen; bis dahin gilt der Browser-Stand bzw. der Standard */
   Vorlagen.laden().then(() => { if(App.seite==="setup") render(); });
@@ -1474,7 +1630,7 @@ function renderPipeline(){
   const alle = Store.data.vorgaenge;
   const deals    = alle.filter(v => istDeal(v));
   const akquise  = alle.filter(v => !istDeal(v) && !v.ergebnis);
-  const faellige = alle.filter(v => !v.ergebnis && wvNaechste(v));
+  const faellige = alle.filter(v => inFaelligListe(v));
 
   /* Ansicht "board" aus altem Stand auf "deals" migrieren */
   if(App.pipelineAnsicht === "board") App.pipelineAnsicht = "deals";
@@ -1629,7 +1785,7 @@ function vcardHTML(v){
   const fi = fristInfo(v);
   if(fi && !v.ergebnis && !v.angebotAm)
     meta += '<span class="chip '+fi.cls+' gross">'+esc(fi.kurz)+"</span>";
-  if(w && !v.ergebnis){
+  if(w && inFaelligListe(v)){
     const cls = dr==="crit"?"crit":dr==="warn"?"warn":"";
     meta += '<span class="chip '+cls+'">'+esc(relativ(w.datum))+"</span>";
   }
@@ -1651,7 +1807,7 @@ function vcardHTML(v){
 
 function faelligHTML(){
   const liste = Store.data.vorgaenge
-    .filter(v=>!v.ergebnis && wvNaechste(v))
+    .filter(v=>inFaelligListe(v))
     .filter(v=> App.passiveZeigen || v.kontaktweg!=="Passiv")
     .sort((a,b)=> wvNaechste(a).datum.localeCompare(wvNaechste(b).datum));
   if(!liste.length) return '<div class="empty"><h3>Nichts fällig</h3><p>Sobald ein Vorgang eine Wiedervorlage hat, steht er hier – die überfälligen zuerst.</p></div>';
@@ -1673,7 +1829,8 @@ function faelligHTML(){
             '<span class="chip '+(dr==="crit"?"crit":dr==="warn"?"warn":"")+'">'+
             esc(fmtDatum(w.datum))+" · "+esc(relativ(w.datum))+"</span>"+
             (w.anlass?'<span class="tiny">'+esc(w.anlass)+"</span>":"")+
-            '<span class="chip">'+esc(stufenName(v.stufe))+"</span>"+
+            '<span class="chip'+(v.ergebnis==="gewonnen"?" ok":"")+'">'+
+              esc(v.ergebnis ? (v.ergebnis==="gewonnen" ? "Auftrag" : "Absage") : stufenName(v.stufe))+"</span>"+
           "</span></button>";
       }).join("")+"</div>";
   };
@@ -2052,6 +2209,7 @@ function jetztKasten(v){
 }
 
 function vorgangFelderLesen(v){
+  const altStufe = v.stufe, altFrist = v.frist, altAngebot = v.angebotAm;
   const g = s => { const el=$(s); return el?el.value:undefined; };
   const set = (k,s) => { const x=g(s); if(x!==undefined) v[k]=x; };
   set("titel","#vTitel"); set("stufe","#vStufe"); set("firmaId","#vFirma");
@@ -2060,6 +2218,14 @@ function vorgangFelderLesen(v){
   set("anfrageAm","#vAnfrageAm"); set("frist","#vFrist"); set("angebotAm","#vAngebotAm");
   const nt = g("#vNachfassTage");
   if(nt!==undefined) v.nachfassTage = Math.min(90, Math.max(1, Number(nt)||10));
+  /* B17: Automatik hier statt nur beim Speichern – egal, welcher Knopf
+     die Felder zuerst uebernimmt, die Erinnerungen werden angelegt. */
+  const m = [stufenAutomatik(v, altStufe), terminAutomatik(v, altFrist, altAngebot)].filter(Boolean).join(" · ");
+  if(m){
+    AutoMeldung = AutoMeldung ? AutoMeldung+" · "+m : m;
+    setTimeout(() => { if(AutoMeldung) toast(""); }, 60);
+  }
+  return m;
 }
 
 /* ---------- 7d. Termine und Nachfass-Automatik -----------------
@@ -2651,6 +2817,7 @@ const MAIL_TRENNER = "\u2500".repeat(30);
 function mailAnsichtOeffnen(){
   const v = DB.vorgang(LayerCtx.vorgangId); if(!v) return;
   vorgangFelderLesen(v);            /* der Vorgangsdialog wird gleich ersetzt */
+  Store.save();                     /* B17: Eingaben im Vorgang nicht nur im Speicher halten */
   const txt = String(v.mailText||"");
   const i = txt.indexOf(MAIL_TRENNER);
   const eck  = i >= 0 ? txt.slice(0, i).trim() : "";
@@ -2685,7 +2852,8 @@ function mailAnsichtSpeichern(){
   const rest = ($("#mtText")||{}).value || "";
   const eck  = LayerCtx.mailEck || "";
   const neu  = rest.trim() ? (eck ? eck+"\n"+MAIL_TRENNER+"\n"+rest : rest) : "";
-  if(neu !== v.mailText){ v.mailText = neu; delete v.entwurf; Store.save(); }
+  if(neu !== v.mailText){ v.mailText = neu; delete v.entwurf; }
+  Store.save();
   vorgangOeffnen(v.id);
   toast(rest.trim() ? "E-Mail gespeichert" : "Kein Text hinterlegt");
 }
@@ -2983,6 +3151,7 @@ function leitErgebnis(art){
       eintrag("Kein Interesse");
       if(f) f.status = "Kein Interesse";
       v.ergebnis="verloren"; v.stufe="abschluss"; v.absagegrund="kein Interesse";
+      abschlussWvAbhaken(v);
       wvSetzen(v, datum || plusMonate(9), "Nach Absage wieder ansprechen");
       Store.save(); render(); toast("Als kein Interesse gebucht");
     });
@@ -2993,13 +3162,14 @@ function leitErgebnis(art){
    eine feste 7 – dadurch wich die Wiedervorlage von dem Datum ab, das
    der Vorgang selbst anzeigte. */
 function stufenAutomatik(v, alteStufe){
-  if(v.stufe==="angebot_versendet" && alteStufe!=="angebot_versendet"){
+  if(v.stufe==="angebot_versendet" && alteStufe!=="angebot_versendet" && !v.ergebnis){
     if(v.kontaktweg==="Aktiv" && !wvNaechste(v)){
       const tage = nachfassFrist(v);
       wvSetzen(v, plusTage(tage, v.angebotAm), "Nachfassen zum Angebot");
-      toast("Wiedervorlage in "+tage+" Tagen gesetzt");
+      return "Wiedervorlage in "+tage+" Tagen gesetzt";
     }
   }
+  return "";
 }
 </script>
 <script>
@@ -3036,11 +3206,40 @@ function plzPasst(plz, muster){
   return negiert ? !treffer : treffer;
 }
 
+/* Zerlegt die Eingabe im Suchfeld. Mehrere Woerter muessen alle passen.
+   Ein Wort mit vorangestelltem Minus oder Ausrufezeichen schliesst aus.
+   Beispiel: „zentrum -reha -rehabilitation" findet alle Zentren ausser
+   den Reha-Einrichtungen. Anfuehrungszeichen fassen mehrere Woerter
+   zusammen: -"ambulante rehabilitation".
+   Ein Minus mitten im Wort bleibt normaler Text, damit Namen wie
+   „Rhein-Main" weiter gefunden werden. */
+function suchWorte(txt){
+  const muss = [], darfNicht = [];
+  const roh = String(txt||"").match(/-?"[^"]*"|\S+/g) || [];
+  for (let t of roh){
+    let raus = false;
+    if(t[0]==="-" || t[0]==="!"){ raus = true; t = t.slice(1); }
+    t = t.replace(/^"|"$/g, "").trim().toLowerCase();
+    if(!t) continue;
+    (raus ? darfNicht : muss).push(t);
+  }
+  return { muss, darfNicht };
+}
+
+function suchePasst(x, txt){
+  const { muss, darfNicht } = suchWorte(txt);
+  if(!muss.length && !darfNicht.length) return true;
+  const heu = ((x.name||"")+" "+(x.ansprechpartner||"")).toLowerCase();
+  for (const t of darfNicht) if(heu.includes(t)) return false;
+  for (const t of muss)      if(!heu.includes(t)) return false;
+  return true;
+}
+
 function firmenGefiltert(){
   const f = App.firmenFilter;
   const n = f.name.trim().toLowerCase(), o = f.ort.trim().toLowerCase();
   return Store.data.firmen.filter(x =>
-    (!n || (x.name||"").toLowerCase().includes(n) || (x.ansprechpartner||"").toLowerCase().includes(n)) &&
+    suchePasst(x, f.name) &&
     (!o || (x.ort||"").toLowerCase().includes(o)) &&
     plzPasst(x.plz, f.plz) &&
     (!f.branche    || x.branche===f.branche) &&
@@ -3081,9 +3280,22 @@ function renderFirmen(){
   const gewaehlt = sichtbarIds.filter(id=>App.auswahl.has(id));
   const alleGewaehlt = sichtbarIds.length>0 && gewaehlt.length===sichtbarIds.length;
 
+  /* Die Auswahl haengt nicht am Filter: wer den Filter wechselt, nimmt die
+     alte Markierung mit. Frueher zeigte die Leiste nur die gerade sichtbaren
+     Treffer – der Export nahm aber alle. So kamen 583 auf dem Bildschirm und
+     1462 in der Datei zusammen. Jetzt steht hier immer die Zahl, die auch
+     exportiert wird, und versteckte Markierungen werden benannt. */
+  const gesamt    = App.auswahl.size;
+  const versteckt = gesamt - gewaehlt.length;
+
   let h = "";
-  if(gewaehlt.length){
-    h += '<div class="selbar"><span class="n">'+gewaehlt.length+"</span> ausgewählt"+
+  if(gesamt){
+    h += '<div class="selbar"><span class="n">'+gesamt+"</span> ausgewählt"+
+      (versteckt
+        ? '<span style="color:#F0B429;font-weight:600">davon '+versteckt+
+          ' außerhalb des Filters</span>'+
+          '<button class="btn sm" data-act="auswahl-sichtbar">Nur die '+gewaehlt.length+' sichtbaren behalten</button>'
+        : "")+
       '<button class="btn sm" data-act="auswahl-alle">Alle '+liste.length+" gefilterten"+"</button>"+
       '<button class="btn sm ghost" style="color:#B9C9D4" data-act="auswahl-leeren">Aufheben</button>'+
       '<div style="flex:1"></div>'+
@@ -3095,7 +3307,21 @@ function renderFirmen(){
       '<button class="btn danger sm" data-act="auswahl-loeschen">Auswahl löschen</button></div>';
   }
 
-  h += '<div class="panel"><div class="tablewrap"><table class="data">'+
+  h += '<div class="panel">'+
+    '<div class="listkopf"><b>'+liste.length+"</b> von "+alle.length+" Firmen angezeigt"+
+      (function(){
+        const s = suchWorte(f.name);
+        return s.darfNicht.length
+          ? '<span style="color:#F0B429;font-weight:600">· ohne: '+esc(s.darfNicht.join(", "))+"</span>"
+          : "";
+      })()+
+      (liste.length < alle.length
+        ? '<span class="muted">· '+(alle.length-liste.length)+" durch Filter ausgeblendet</span>"+
+          '<div style="flex:1"></div>'+
+          '<button class="btn sm ghost" data-act="filter-zuruecksetzen">Filter zurücksetzen</button>'
+        : "")+
+    "</div>"+
+    '<div class="tablewrap fixhead"><table class="data">'+
     "<thead><tr>"+
       '<th style="width:34px"><input type="checkbox" id="chkAll"'+(alleGewaehlt?" checked":"")+"></th>"+
       (function(){
@@ -3109,7 +3335,10 @@ function renderFirmen(){
     "</tr>"+
     '<tr class="filterrow">'+
       "<th></th>"+
-      '<th><input type="text" data-filter="name" value="'+esc(f.name)+'" placeholder="Suchen…"></th>'+
+      '<th><input type="text" data-filter="name" value="'+esc(f.name)+'" '+
+        'placeholder="Suchen… ( -wort schließt aus )" '+
+        'title="Mehrere Wörter müssen alle vorkommen. Ein Minus davor schließt aus.'+"\n"+
+        'Beispiel: zentrum -reha -rehabilitation"></th>'+
       '<th><select data-filter="branche">'+optionen(BRANCHEN,f.branche,"Alle")+"</select></th>"+
       '<th><select data-filter="gruppe">'+optionen(GRUPPEN,f.gruppe,"Alle")+"</select></th>"+
       '<th><select data-filter="segment">'+optionen(SEGMENTE,f.segment,"Alle")+"</select></th>"+
@@ -3149,10 +3378,29 @@ function renderFirmen(){
       "</tr>";
     }
   }
-  h += "</tbody></table></div></div>"+
-    '<div class="tiny muted" style="margin-top:10px">'+liste.length+" von "+alle.length+" Firmen angezeigt</div>";
+  h += "</tbody></table></div></div>";
   $("#content").innerHTML = h;
+  tabelleFixieren();
 }
+
+/* Gibt dem Tabellenbereich die Resthoehe bis zum unteren Fensterrand und
+   setzt die Filterzeile genau unter die Ueberschriftenzeile. Beides muss
+   gemessen werden: die Topbar bricht je nach Fensterbreite um, und die
+   Kopfzeilenhoehe haengt von der Schrift ab. */
+function tabelleFixieren(){
+  const wrap = document.querySelector(".tablewrap.fixhead");
+  if(!wrap) return;
+  const kopf = wrap.querySelector("thead tr:first-child");
+  const filt = wrap.querySelector("thead tr.filterrow");
+  if(kopf && filt){
+    const h = kopf.getBoundingClientRect().height || kopf.offsetHeight || 33;
+    filt.querySelectorAll("th").forEach(th => { th.style.top = h+"px"; });
+  }
+  const oben = wrap.getBoundingClientRect().top;
+  const rest = window.innerHeight - oben - 24;
+  wrap.style.maxHeight = Math.max(300, rest)+"px";
+}
+window.addEventListener("resize", () => { try{ tabelleFixieren(); }catch(_){} });
 
 /* E-Mail, Website und Telefon als echte Links: mailto oeffnet Outlook,
    die Website geht in einem neuen Tab auf. */
@@ -3739,6 +3987,22 @@ function anredeZeile(f){
 }
 
 function serienbriefExport(ids){
+  if(ids && ids.length){
+    const sicht = new Set(firmenGefiltert().map(x=>x.id));
+    const drueber = ids.filter(id=>!sicht.has(id)).length;
+    if(drueber){
+      bestaetigen("Auswahl größer als der Filter",
+        ids.length+" Firmen sind markiert, davon "+drueber+" außerhalb des aktuellen Filters. "+
+        "Alle "+ids.length+" kommen in die Datei. Weiter?",
+        "Ja, alle "+ids.length,
+        ()=>{ serienbriefExport2(ids); });
+      return;
+    }
+  }
+  return serienbriefExport2(ids);
+}
+
+function serienbriefExport2(ids){
   let liste = ids.length
     ? Store.data.firmen.filter(f=>ids.includes(f.id))
     : firmenGefiltert();
@@ -4059,6 +4323,27 @@ function postSatzBauen(f){
 }
 
 function digitalpostExport(ids){
+  let liste = (ids && ids.length)
+    ? Store.data.firmen.filter(f=>ids.includes(f.id))
+    : firmenGefiltert();
+  /* Sicherheitsnetz: wenn die Auswahl ueber den aktuellen Filter hinausgeht,
+     erst fragen. Ein Postversand laesst sich nicht zurueckholen. */
+  if(ids && ids.length){
+    const sicht = new Set(firmenGefiltert().map(x=>x.id));
+    const drueber = ids.filter(id=>!sicht.has(id)).length;
+    if(drueber){
+      bestaetigen("Auswahl größer als der Filter",
+        ids.length+" Firmen sind markiert, davon "+drueber+" außerhalb des aktuellen Filters. "+
+        "Alle "+ids.length+" kommen in die Datei. Weiter?",
+        "Ja, alle "+ids.length,
+        ()=>{ digitalpostExport2(ids); });
+      return;
+    }
+  }
+  return digitalpostExport2(ids);
+}
+
+function digitalpostExport2(ids){
   let liste = (ids && ids.length)
     ? Store.data.firmen.filter(f=>ids.includes(f.id))
     : firmenGefiltert();
@@ -4421,6 +4706,14 @@ function layerSchliessen(){
 }
 /* Abbrechen-Weg: Escape und alle Abbrechen-/Zurueck-Knoepfe. Speichern
    ruft weiterhin direkt layerSchliessen() auf und fragt nichts. */
+/* B17: Zurueck aus einem Unterfenster (E-Mail, Nachfass-Mail, Leitfaden,
+   Objekt) – fragt nach, wenn dort etwas getippt wurde. */
+function layerZurueck(weiter){
+  if(LayerBeruehrt &&
+     !window.confirm("In diesem Fenster sind ungespeicherte Eingaben.\n\nTrotzdem zurück und verwerfen?"))
+    return;
+  weiter();
+}
 function layerAbbrechen(){
   if(LayerBeruehrt &&
      !window.confirm("Dieser Dialog hat ungespeicherte \u00c4nderungen.\n\nWirklich schliessen und verwerfen?"))
@@ -4471,9 +4764,11 @@ function bestaetigen(titel, text, knopf, aktion){
 }
 
 function abschlussDialog(v, art){
+  AutoMeldung = "";   /* Nachfass-Hinweise sind mit dem Abschluss hinfällig */
   if(art==="gewonnen"){
     delete v.entwurf;
     v.ergebnis="gewonnen"; v.stufe="abschluss";
+    abschlussWvAbhaken(v);
     wvSetzen(v, plusTage(90), "90-Tage-Check nach Vertragsstart");
     wvSetzen(v, plusMonate(3), "Empfehlung erfragen");
     const f = DB.firma(v.firmaId); if(f && f.status!=="Kunde") f.status="Kunde";
@@ -4492,6 +4787,7 @@ function abschlussDialog(v, art){
     if(!g){ toast("Bitte einen Grund wählen"); return; }
     delete v.entwurf;
     v.ergebnis="verloren"; v.stufe="abschluss"; v.absagegrund=g;
+    abschlussWvAbhaken(v);
     wvSetzen(v, plusMonate(9), "Nach Absage wieder ansprechen");
     Store.save(); layerSchliessen(); render();
     toast("Absage gebucht · Reaktivierung in 9 Monaten");
@@ -4624,16 +4920,20 @@ function aktion(act, el){
       vorgangOeffnen(v.id); return;
     }
     case "vorgang-speichern": {
-      const v = V(); const alt = v.stufe;
-      const altFrist = v.frist, altAngebot = v.angebotAm;
-      vorgangFelderLesen(v);
+      const v = V();
+      vorgangFelderLesen(v);            /* Automatik laeuft dort mit */
       if(!v.firmaId){ toast("Bitte erst die Firma wählen"); return; }
       if(!v.titel.trim()) v.titel = "Ohne Titel";
+      /* B17: noch nicht eingetragene Notiz nicht verlieren */
+      const aT = $("#aText"), nText = aT ? aT.value.trim() : "";
+      if(nText){
+        const aTyp = $("#aTyp"), aDat = $("#aDatum");
+        neueAktivitaet({ vorgangId:v.id, typ:aTyp?aTyp.value:"Notiz",
+          datum:(aDat&&aDat.value)||ISO(new Date()), text:nText });
+      }
       delete v.entwurf;
-      stufenAutomatik(v, alt);
-      const m = terminAutomatik(v, altFrist, altAngebot);
       Store.save(); layerSchliessen(); render();
-      toast(m ? "Gespeichert · "+m : "Gespeichert"); return;
+      toast(nText ? "Gespeichert · Notiz eingetragen" : "Gespeichert"); return;
     }
     case "vorgang-loeschen": {
       const v = V();
@@ -4645,6 +4945,7 @@ function aktion(act, el){
     case "verloren": { const v=V(); vorgangFelderLesen(v); abschlussDialog(v,"verloren"); return; }
     case "abschluss-zuruck": {
       const v=V(); vorgangFelderLesen(v);
+      abschlussTermineAbhaken(v);
       v.ergebnis=""; v.absagegrund=""; v.stufe="nachfass";
       Store.save(); vorgangOeffnen(v.id); render(); return;
     }
@@ -4655,13 +4956,18 @@ function aktion(act, el){
     }
     /* --- Termine --- */
     case "angebot-heute": {
-      const v = V(); const altAngebot = v.angebotAm;
-      vorgangFelderLesen(v);
-      v.angebotAm = ISO(new Date());
-      const m = terminAutomatik(v, v.frist, altAngebot);
+      const v = V();
+      const inp = $("#vAngebotAm"); if(inp) inp.value = ISO(new Date());
+      const altAngebot = v.angebotAm;
+      vorgangFelderLesen(v);            /* Automatik laeuft dort mit */
+      if(!inp){
+        v.angebotAm = ISO(new Date());
+        const m = terminAutomatik(v, v.frist, altAngebot);
+        if(m) AutoMeldung = m;
+      }
       delete v.entwurf;
       Store.save(); vorgangOeffnen(v.id); render();
-      toast(m || "Abgabedatum auf heute gesetzt"); return;
+      toast("Abgabedatum auf heute gesetzt"); return;
     }
     case "wv-frist": {
       const v = V(); vorgangFelderLesen(v);
@@ -4714,7 +5020,7 @@ function aktion(act, el){
     /* --- Nachfassen --- */
     case "nachfass":            { nachfassOeffnen(Number(el.getAttribute("data-stufe"))||1); return; }
     case "nachfass-los":        { const s=$("#nfStufe"); nachfassOeffnen(s?Number(s.value)||1:1); return; }
-    case "nachfass-zurueck":    { vorgangOeffnen(LayerCtx.vorgangId); return; }
+    case "nachfass-zurueck":    { const id=LayerCtx.vorgangId; layerZurueck(()=>vorgangOeffnen(id)); return; }
     case "nachfass-outlook":    { nachfassOutlook(); return; }
     case "nachfass-kopieren":   { nachfassKopieren(); return; }
     case "nachfass-eingetragen":{ nachfassEingetragen(); return; }
@@ -4742,9 +5048,9 @@ function aktion(act, el){
     case "mail-ansehen":          { mailAnsichtOeffnen(); return; }
     case "mail-ansicht-speichern":{ mailAnsichtSpeichern(); return; }
     case "mail-ansicht-kopieren": { mailAnsichtKopieren(); return; }
-    case "mail-ansicht-zurueck":  { vorgangOeffnen(LayerCtx.vorgangId); return; }
+    case "mail-ansicht-zurueck":  { const id=LayerCtx.vorgangId; layerZurueck(()=>vorgangOeffnen(id)); return; }
 
-    case "leit-zurueck":  { vorgangOeffnen(LayerCtx.vorgangId); return; }
+    case "leit-zurueck":  { const id=LayerCtx.vorgangId; layerZurueck(()=>vorgangOeffnen(id)); return; }
     case "leit-kopieren": { leitKopieren(); return; }
     case "leit-erreicht": { leitErgebnis("erreicht"); return; }
     case "leit-nicht":    { leitErgebnis("nicht");    return; }
@@ -4766,8 +5072,17 @@ function aktion(act, el){
       const v=V(); vorgangFelderLesen(v);
       const text = $("#aText").value.trim();
       if(!text){ toast("Bitte kurz eintragen, was passiert ist"); return; }
-      neueAktivitaet({ vorgangId:v.id, typ:$("#aTyp").value, datum:$("#aDatum").value, text });
-      Store.save(); vorgangOeffnen(v.id); toast("Eingetragen"); return;
+      /* B17: Ein Entwurf wuerde beim Schliessen samt Notiz verworfen.
+         Mit gewaehlter Firma gilt der Vorgang deshalb ab hier als gespeichert. */
+      let neu = false;
+      if(v.entwurf){
+        if(!v.firmaId){ toast("Bitte erst die Firma wählen, sonst kann die Notiz nicht gespeichert werden"); return; }
+        if(!(v.titel||"").trim()) v.titel = "Ohne Titel";
+        delete v.entwurf; neu = true;
+      }
+      neueAktivitaet({ vorgangId:v.id, typ:$("#aTyp").value, datum:$("#aDatum").value||ISO(new Date()), text });
+      Store.save(); vorgangOeffnen(v.id); render();
+      toast(neu ? "Eingetragen · Vorgang gespeichert" : "Eingetragen"); return;
     }
 
     /* --- Firma --- */
@@ -4798,7 +5113,7 @@ function aktion(act, el){
       objektFelderLesenModal(o);
       Store.save(); firmaOeffnen(LayerCtx.firmaId); return;
     }
-    case "objekt-zurueck": { firmaOeffnen(LayerCtx.firmaId); return; }
+    case "objekt-zurueck": { const id=LayerCtx.firmaId; layerZurueck(()=>firmaOeffnen(id)); return; }
     case "objekt-loeschen": {
       const oid = LayerCtx.objektId, fid = LayerCtx.firmaId;
       Store.data.objekte = Store.data.objekte.filter(o=>o.id!==oid);
@@ -4841,6 +5156,19 @@ function aktion(act, el){
     }
     case "auswahl-alle": { firmenGefiltert().forEach(x=>App.auswahl.add(x.id)); render(); return; }
     case "auswahl-leeren": { App.auswahl.clear(); render(); return; }
+    case "filter-zuruecksetzen": {
+      for (const k of Object.keys(App.firmenFilter)) App.firmenFilter[k] = "";
+      render(); return;
+    }
+    case "auswahl-sichtbar": {
+      /* Alles verwerfen, was der aktuelle Filter nicht zeigt. */
+      const sicht = new Set(firmenGefiltert().map(x=>x.id));
+      let weg = 0;
+      for (const id of [...App.auswahl]) if(!sicht.has(id)){ App.auswahl.delete(id); weg++; }
+      render();
+      toast(weg+" versteckte Markierung"+(weg===1?"":"en")+" entfernt");
+      return;
+    }
     case "dub-pruefen": { dublettenZeigen(); return; }
     case "auswahl-loeschen": {
       const ids = [...App.auswahl];
@@ -5074,9 +5402,10 @@ document.addEventListener("drop", e => {
   if(!v || v.stufe===neu) return;
   if(neu==="abschluss"){ abschlussDialog(v,"gewonnen"); return; }
   const alt = v.stufe; v.stufe = neu;
-  if(v.ergebnis){ v.ergebnis=""; v.absagegrund=""; }
-  stufenAutomatik(v, alt);
+  if(v.ergebnis){ abschlussTermineAbhaken(v); v.ergebnis=""; v.absagegrund=""; }
+  const sm = stufenAutomatik(v, alt);
   Store.save(); render();
+  if(sm) toast(sm);
 });
 
 document.addEventListener("keydown", e => {

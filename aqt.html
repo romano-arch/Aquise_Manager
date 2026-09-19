@@ -45,7 +45,7 @@ h3{font-size:14px}
 .app{display:flex; min-height:100dvh}
 .nav{
   width:var(--nav-w); flex:0 0 var(--nav-w); background:var(--ink); color:#DDE6EC;
-  display:flex; flex-direction:column; position:sticky; top:0; height:100dvh;
+  display:flex; flex-direction:column; position:sticky; top:var(--warn-h,0px); height:calc(100dvh - var(--warn-h,0px));
 }
 .brand{padding:18px 16px 14px; border-bottom:1px solid rgba(255,255,255,.10)}
 .brand .logo{font-size:15.5px; font-weight:700; letter-spacing:.03em; color:#fff; line-height:1.25}
@@ -71,7 +71,7 @@ h3{font-size:14px}
 .topbar{
   background:var(--surface); border-bottom:1px solid var(--line);
   padding:14px 22px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;
-  position:sticky; top:0; z-index:30;
+  position:sticky; top:var(--warn-h,0px); z-index:30;
 }
 .topbar .spacer{flex:1}
 .content{padding:20px 22px 60px; flex:1; min-width:0}
@@ -227,7 +227,7 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:po
 
 /* ---------- Modal / Drawer ---------- */
 .overlay{
-  position:fixed; inset:0; background:rgba(20,32,42,.42); z-index:100;
+  position:fixed; inset:var(--warn-h,0px) 0 0 0; background:rgba(20,32,42,.42); z-index:100;
   display:flex; justify-content:flex-end;
 }
 .drawer{
@@ -475,9 +475,13 @@ const KEY = "aqt.v1";
 const Backends = {
   local: {
     id:"local", label:"Lokal gespeichert", color:"#3FA96B",
-    available(){ try{ const k="__t"; localStorage.setItem(k,"1"); localStorage.removeItem(k); return true; }catch(e){ return false; } },
-    load(){ try{ const r=localStorage.getItem(KEY); return r?JSON.parse(r):null; }catch(e){ return null; } },
-    save(d){ try{ localStorage.setItem(KEY, JSON.stringify(d)); return true; }catch(e){ console.warn(e); return false; } }
+    /* B18: Nur lesen pruefen – ein voller Speicher heisst nicht „gesperrt“ */
+    available(){ try{ localStorage.getItem("__t"); return true; }catch(e){ return false; } },
+    load(){ try{
+      /* Liegt die Kopie schon in IndexedDB, ist aqt.v1 veraltet: weg damit */
+      if(localStorage.getItem("aqt.spiegel")==="idb"){ try{ localStorage.removeItem(KEY); }catch(_){} return null; }
+      const r=localStorage.getItem(KEY); return r?JSON.parse(r):null; }catch(e){ return null; } },
+    save(d){ Spiegel.planen("daten", d); return true; }
   },
   memory: {
     id:"memory", label:"Nur für diese Sitzung", color:"#C99A2E",
@@ -684,6 +688,93 @@ Object.assign(Auth, {
   eingeloggt(){ return !!this.user; }
 });
 
+/* ---------- 1a. Lokale Kopie in IndexedDB (B18) -----------------
+   localStorage fasst pro Webadresse nur ca. 5 MB – und alle Tools unter
+   derselben Adresse teilen sich das. IndexedDB hat ein Vielfaches.
+   Schreiben laeuft gebuendelt im Hintergrund; klemmt IndexedDB, wird
+   ersatzweise localStorage versucht. Schluessel: "daten", "offen".
+------------------------------------------------------------------- */
+const Spiegel = {
+  NAME:"aqt-spiegel", TAB:"kv",
+  _db:null, _warte:{}, _lauf:null,
+  modus:"", zuletzt:null, fehler:"",
+
+  _oeffnen(){
+    if(this._db) return Promise.resolve(this._db);
+    return new Promise((res, rej) => {
+      let r;
+      try{ r = indexedDB.open(this.NAME, 1); }catch(e){ rej(e); return; }
+      r.onupgradeneeded = () => { r.result.createObjectStore(this.TAB); };
+      r.onsuccess = () => {
+        this._db = r.result;
+        this._db.onversionchange = () => { try{ this._db.close(); }catch(_){} this._db = null; };
+        res(this._db);
+      };
+      r.onerror   = () => rej(r.error || new Error("IndexedDB lässt sich nicht öffnen"));
+      r.onblocked = () => rej(new Error("IndexedDB blockiert"));
+    });
+  },
+
+  async _put(eintraege){
+    const db = await this._oeffnen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(this.TAB, "readwrite");
+      const st = tx.objectStore(this.TAB);
+      for (const k of Object.keys(eintraege)) st.put(eintraege[k], k);
+      tx.oncomplete = () => res();
+      tx.onerror    = () => rej(tx.error || new Error("Schreiben fehlgeschlagen"));
+      tx.onabort    = () => rej(tx.error || new Error("Schreiben abgebrochen"));
+    });
+  },
+
+  planen(k, wert){
+    this._warte[k] = wert;
+    if(!this._lauf) this._lauf = this._abarbeiten();
+    return this._lauf;
+  },
+
+  async _abarbeiten(){
+    await new Promise(r => setTimeout(r, 0));   /* mehrere Saves bündeln */
+    while(Object.keys(this._warte).length){
+      const w = this._warte; this._warte = {};
+      try{
+        await this._put(w);
+        this.modus = "idb"; this.fehler = ""; this.zuletzt = new Date();
+        try{
+          if("daten" in w){ localStorage.removeItem("aqt.v1"); localStorage.setItem("aqt.spiegel", "idb"); }
+          if("offen" in w) localStorage.removeItem("aqt.offen");
+        }catch(_){}
+        speicherWarnung("lokal", "");
+      }catch(e){
+        console.warn("IndexedDB:", e);
+        let ok = true;
+        try{
+          if("daten" in w){ localStorage.setItem("aqt.v1", JSON.stringify(w.daten)); localStorage.removeItem("aqt.spiegel"); }
+          if("offen" in w) localStorage.setItem("aqt.offen", JSON.stringify(w.offen || {}));
+        }catch(e2){ ok = false; }
+        this.modus  = ok ? "localStorage" : "";
+        this.fehler = ok ? "" : ((e && e.message) || String(e));
+        if(ok) this.zuletzt = new Date();
+        speicherWarnung("lokal", ok ? "" :
+          "Lokale Sicherung fehlgeschlagen ("+this.fehler+"). Die Cloud speichert weiter – zur Sicherheit unter Einstellungen die Daten exportieren.");
+      }
+    }
+    this._lauf = null;
+  },
+
+  async lesen(k){
+    if(this._lauf){ try{ await this._lauf; }catch(_){} }
+    try{
+      const db = await this._oeffnen();
+      return await new Promise((res, rej) => {
+        const r = db.transaction(this.TAB, "readonly").objectStore(this.TAB).get(k);
+        r.onsuccess = () => res(r.result);
+        r.onerror   = () => rej(r.error);
+      });
+    }catch(e){ console.warn("IndexedDB lesen:", e); return undefined; }
+  }
+};
+
 const Store = {
   backend: Backends.local.available() ? Backends.local : Backends.memory,
   data: null,
@@ -695,22 +786,17 @@ const Store = {
     if(!this.data.meta) this.data.meta={};
   },
   save(){
-    let ok = this.backend.save(this.data) !== false;
+    const ok = this.backend.save(this.data) !== false;
     if(this.backend.id === "supabase"){
-      /* Sicherheitsnetz: im Cloud-Modus zusaetzlich immer lokal spiegeln.
-         Faellt der Cloud-Sync aus (Token abgelaufen, kein Netz), bleibt der
-         Stand lokal erhalten und wird beim naechsten Login abgeglichen und
-         hochgeladen. So geht nichts mehr verloren. */
-      try{ localStorage.setItem("aqt.v1", JSON.stringify(this.data)); }
-      catch(e){ ok = false; console.warn(e); }
+      /* Sicherheitsnetz: im Cloud-Modus zusaetzlich immer lokal spiegeln
+         (B18: in IndexedDB). Faellt der Cloud-Sync aus, bleibt der Stand
+         lokal erhalten und wird beim naechsten Login nachgeholt. */
+      Spiegel.planen("daten", this.data);
       /* B17: merken, welche Eintraege noch nicht in der Cloud sind */
       Sync.offenMerken();
       Sync.anstossen();
     }
-    speicherWarnung("lokal", ok ? "" :
-      (this.backend.id === "supabase"
-        ? "Lokale Sicherung fehlgeschlagen (Browser-Speicher voll oder gesperrt). Bitte unter Einstellungen die Daten exportieren."
-        : "NICHT gespeichert – Browser-Speicher voll oder gesperrt. Bitte sofort unter Einstellungen die Daten exportieren."));
+    if(!ok) speicherWarnung("lokal", "NICHT gespeichert – bitte sofort unter Einstellungen die Daten exportieren.");
     return ok;
   },
   replaceAll(d){ this.data = d; this.save(); }
@@ -737,22 +823,33 @@ const SYNC_TABELLEN = [
 const SpeicherWarn = { lokal:"", cloud:"" };
 function speicherWarnung(art, text){
   SpeicherWarn[art] = text || "";
+  speicherWarnungZeigen();
+}
+/* B18: Balken steht oben im Seitenfluss und schiebt alles nach unten.
+   --warn-h verschiebt Navigation, Kopfzeile und Dialoge mit. */
+function warnHoeheSetzen(){
+  const el = document.getElementById("speicherWarn");
+  document.documentElement.style.setProperty("--warn-h", (el ? el.offsetHeight : 0)+"px");
+}
+window.addEventListener("resize", warnHoeheSetzen);
+function speicherWarnungZeigen(){
   if(!document.body) return;
   let el = document.getElementById("speicherWarn");
   const txt = [SpeicherWarn.lokal, SpeicherWarn.cloud].filter(Boolean).join(" · ");
-  if(!txt){ if(el) el.remove(); return; }
+  if(!txt){ if(el) el.remove(); warnHoeheSetzen(); return; }
   if(!el){
     el = document.createElement("div");
     el.id = "speicherWarn";
-    el.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:100000;background:#E0554A;color:#fff;"+
+    el.style.cssText = "position:sticky;top:0;z-index:500;background:#E0554A;color:#fff;"+
       "padding:8px 14px;font-size:13px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25)";
-    document.body.appendChild(el);
+    document.body.insertBefore(el, document.body.firstChild);
   }
   el.innerHTML = esc(txt)+(SpeicherWarn.cloud
     ? ' <button id="speicherWarnRetry" style="margin-left:10px;padding:2px 10px;border:1px solid #fff;background:transparent;color:#fff;border-radius:4px;cursor:pointer">Erneut versuchen</button>'
     : "");
   const b = document.getElementById("speicherWarnRetry");
   if(b) b.onclick = () => Sync.anstossen();
+  warnHoeheSetzen();
 }
 
 const Sync = {
@@ -804,8 +901,7 @@ const Sync = {
   offenMerken(){
     try{
       const l = this.offeneListe(); if(!l) return;
-      if(Object.keys(l).length) localStorage.setItem("aqt.offen", JSON.stringify(l));
-      else localStorage.removeItem("aqt.offen");
+      Spiegel.planen("offen", l);         /* B18: in IndexedDB */
     }catch(e){ console.warn(e); }
   },
 
@@ -1439,9 +1535,12 @@ function loginZeigen(fehler){
     btn.disabled=true; btn.textContent="…";
     try{
       /* Lokale Daten sichern, bevor wir Store überschreiben */
-      const lokal = JSON.parse(JSON.stringify(Store.data));
-      let offen = null;
-      try{ offen = JSON.parse(localStorage.getItem("aqt.offen") || "null"); }catch(_){ offen = null; }
+      let lokal = JSON.parse(JSON.stringify(Store.data));
+      /* B18: aktuelle Kopie liegt in IndexedDB; aqt.v1 nur noch Altbestand */
+      const gespiegelt = await Spiegel.lesen("daten");
+      if(gespiegelt && Array.isArray(gespiegelt.firmen)) lokal = gespiegelt;
+      let offen = await Spiegel.lesen("offen");
+      if(!offen){ try{ offen = JSON.parse(localStorage.getItem("aqt.offen") || "null"); }catch(_){ offen = null; } }
       await SB.login(mail, pw);
       Store.backend = Backends.supabase;
       await sbLaden();
@@ -1507,7 +1606,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 16.09.2026 · B17</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 16.09.2026 · B18</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -1521,6 +1620,7 @@ function appStarten(){
     '</div>'+
     '<nav class="mobilenav" id="mobileNav"></nav>'+
     '<div id="layer"></div><div id="toastHost"></div>';
+  speicherWarnungZeigen();   /* B18: Balken ueberlebt den Neuaufbau */
   /* Logout-Button verdrahten */
   document.getElementById("logoutBtn").onclick = () => {
     bestaetigen("Abmelden?","Du wirst abgemeldet.",
@@ -4483,6 +4583,7 @@ function renderSetup(){
         d.firmen.length+" Firmen · "+d.objekte.length+" Objekte · "+d.vorgaenge.length+" Vorgänge · "+
         d.aktivitaeten.length+" Aktivitäten · "+(d.anhaenge||[]).length+
         ((d.anhaenge||[]).length===1?" Anhang":" Anhänge")+"</div>"+
+      '<div class="tiny muted" id="spiegelInfo" style="margin-top:6px">Lokale Kopie wird geprüft…</div>'+
     "</div></div>"+
 
     '<div class="panel" style="margin-top:18px"><div class="panel-head"><h3>Supabase</h3>'+
@@ -4560,6 +4661,29 @@ function renderSetup(){
       "Automatischer Mail-Abruf von vorgang@ (braucht ein Skript am Postfach) · "+
       "KI-Vorschlag „nächster Schritt“ · DSGVO: Widerspruchsfeld, Löschfristen, Herkunftsprotokoll</div>"+
     "</div></div>";
+  spiegelInfoZeigen();
+}
+
+/* B18: Größe der Daten, Stand der lokalen Kopie, Belegung im Browser */
+function spiegelInfoZeigen(){
+  const el = $("#spiegelInfo"); if(!el) return;
+  const mb = n => (n/1048576).toLocaleString("de-DE", { maximumFractionDigits:1, minimumFractionDigits:1 })+" MB";
+  let groesse = 0;
+  try{ groesse = JSON.stringify(Store.data).length; }catch(_){}
+  const teile = ["Datenmenge ca. "+mb(groesse)];
+  const S = Spiegel;
+  if(S.fehler) teile.push("lokale Kopie: FEHLER – "+S.fehler);
+  else if(S.zuletzt) teile.push("lokale Kopie: aktuell ("+(S.modus==="idb" ? "IndexedDB" : "localStorage, Ersatzweg")+", "+
+    S.zuletzt.toLocaleTimeString("de-DE", { hour:"2-digit", minute:"2-digit" })+" Uhr)");
+  else teile.push("lokale Kopie: in dieser Sitzung noch nicht geschrieben");
+  const fertig = extra => { const e2 = $("#spiegelInfo"); if(e2) e2.textContent = teile.concat(extra||[]).join(" · "); };
+  fertig();
+  try{
+    if(navigator.storage && navigator.storage.estimate)
+      navigator.storage.estimate().then(s => {
+        if(s && s.quota) fertig(["Browser-Speicher: "+mb(s.usage||0)+" von "+mb(s.quota)+" belegt"]);
+      }).catch(()=>{});
+  }catch(_){}
 }
 
 /* Sichtbarer Speicherstand – bleibt stehen, anders als ein Toast */

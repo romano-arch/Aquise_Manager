@@ -1424,6 +1424,161 @@ function sicherungHerunterladen(zusatz){
   a.click(); URL.revokeObjectURL(a.href);
 }
 
+/* ---------- Branchen-Abgleich (B20) ------------------------------
+   Die Liste kommt aus der Branchenpruefung (Excel) und traegt die AQT-ID,
+   also die Firmen-ID im Tool. Es wird deshalb NICHTS importiert und nichts
+   angelegt: jede Zeile sucht ihre Firma per ID und setzt nur Haupt-/
+   Unterkategorie sowie daraus abgeleitet Branche und Gruppe. Status,
+   Quelle, Notizen, Vorgaenge bleiben unberuehrt. So kann keine Dublette
+   entstehen. */
+const HAUPT_KATEGORIEN = [
+  "Medizin & Gesundheit","Kanzleien & Beratung","Sonstige eindeutig erkennbare Dienstleistungen",
+  "Industrie & Logistik","Einzelhandel","Handwerk & Bau","Immobilien & Hausverwaltung",
+  "\u00d6ffentliche & Gemeinn\u00fctzige Einrichtungen","Bildung & Betreuung","Gastronomie & Hotellerie","Ungekl\u00e4rt"
+];
+const HAUPT_ZU_BRANCHE = {
+  "Medizin & Gesundheit":"Medizin",
+  "Bildung & Betreuung":"Schule-Kita",
+  "Handwerk & Bau":"Bau",
+  "\u00d6ffentliche & Gemeinn\u00fctzige Einrichtungen":"\u00d6ffentliche Hand",
+  "Einzelhandel":"Einzelhandel",
+  "Gastronomie & Hotellerie":"Einzelhandel",
+  "Industrie & Logistik":"Industrie",
+  "Kanzleien & Beratung":"B\u00fcro",
+  "Immobilien & Hausverwaltung":"B\u00fcro",
+  "Sonstige eindeutig erkennbare Dienstleistungen":"B\u00fcro"
+};
+/* Hauptkategorie -> Ansprache-Gruppe. Fuer Handwerk & Bau gibt es keinen
+   eigenen Topf, dort geht der allgemeine Gebaeudereiniger-Brief raus. */
+function hauptZuGruppe(f, haupt, unter){
+  const u = String(unter||"").toLowerCase();
+  switch(haupt){
+    case "Medizin & Gesundheit":
+      if(f.segment==="Gro\u00dfpraxis") return "Medizin \u2013 Gro\u00dfpraxen & Zentren";
+      return /zahn|dental/.test(u) ? "Zahnarztpraxen einzeln" : "Arztpraxen einzeln";
+    case "Kanzleien & Beratung": return "Kanzleien & Beratung";
+    case "Sonstige eindeutig erkennbare Dienstleistungen":
+      return /bank|finanz|versicher/.test(u) ? "Banken, Finanzen & Versicherung" : "Allgemeine Dienstleistung / B\u00fcro";
+    case "Industrie & Logistik": return "Industrie, Handel & Logistik";
+    case "Einzelhandel": return /auto|fahrzeug|kfz/.test(u) ? "Autoh\u00e4user & Kfz" : "Einzelhandel & Gesch\u00e4fte";
+    case "\u00d6ffentliche & Gemeinn\u00fctzige Einrichtungen": return "\u00d6ffentliche Hand & Verb\u00e4nde";
+    case "Gastronomie & Hotellerie": return "Hotels & Gastgewerbe";
+    case "Bildung & Betreuung": return "Bildung & Schulen";
+    case "Immobilien & Hausverwaltung": return "Immobilien";
+    default: return "Allgemeine Dienstleistung / B\u00fcro";
+  }
+}
+
+const Abgleich = { plan:null };
+
+function abgleichBerechnen(zeilen){
+  const kopf = zeilen[0].map(s=>String(s==null?"":s).trim().toUpperCase());
+  const ix = n => kopf.indexOf(n.toUpperCase());
+  const iId=ix("AQT-ID"), iH=ix("Hauptkategorie"), iU=ix("Unterkategorie"), iS=ix("Zuordnungssicherheit");
+  if(iId<0 || iH<0) return { fehler:"In der Datei fehlen die Spalten AQT-ID und Hauptkategorie." };
+  const zell = (z,i) => i<0 ? "" : String(z[i]==null?"":z[i]).trim();
+
+  const p = { aenderungen:[], gefunden:0, unveraendert:0, nichtGefunden:0, unbekannt:0,
+              brancheNeu:0, gruppeNeu:0, kunden:0, ungeklaert:0, nachHaupt:{}, doppelt:0 };
+  const gesehen = new Set();
+  for (const z of zeilen.slice(1)){
+    const id = zell(z,iId); if(!id) continue;
+    if(gesehen.has(id)){ p.doppelt++; continue; }
+    gesehen.add(id);
+    const f = DB.firma(id);
+    if(!f){ p.nichtGefunden++; continue; }
+    const haupt = zell(z,iH);
+    if(!HAUPT_KATEGORIEN.includes(haupt)){ p.unbekannt++; continue; }
+    p.gefunden++;
+    p.nachHaupt[haupt] = (p.nachHaupt[haupt]||0)+1;
+
+    const unter = haupt==="Ungekl\u00e4rt" ? "" : zell(z,iU);
+    const sicher = zell(z,iS).toLowerCase();
+    const geschuetzt = f.segment==="Konsulat" || f.segment==="Gro\u00dfpraxis" || f.gruppe==="Konsulate & Botschaften";
+    let branche = f.branche||"", gruppe = f.gruppe||"";
+    if(haupt==="Ungekl\u00e4rt"){
+      if(!gruppe) gruppe = "Allgemeine Dienstleistung / B\u00fcro";
+    } else if(!geschuetzt){
+      const sicherGenug = sicher==="hoch" || sicher==="mittel";
+      if(sicherGenug || !branche) branche = HAUPT_ZU_BRANCHE[haupt];
+      if(sicherGenug || !gruppe)  gruppe  = hauptZuGruppe(f, haupt, unter);
+    }
+    const neu = { hauptkategorie:haupt, unterkategorie:unter, branche, gruppe };
+    const alt = { hauptkategorie:f.hauptkategorie||"", unterkategorie:f.unterkategorie||"",
+                  branche:f.branche||"", gruppe:f.gruppe||"" };
+    if(neu.hauptkategorie===alt.hauptkategorie && neu.unterkategorie===alt.unterkategorie &&
+       neu.branche===alt.branche && neu.gruppe===alt.gruppe){ p.unveraendert++; continue; }
+    if(neu.branche!==alt.branche) p.brancheNeu++;
+    if(neu.gruppe!==alt.gruppe) p.gruppeNeu++;
+    if(f.status==="Kunde" || f.status==="Ehemaliger Kunde") p.kunden++;
+    if(haupt==="Ungekl\u00e4rt") p.ungeklaert++;
+    p.aenderungen.push({ f, neu });
+  }
+  p.imToolNichtInDatei = Store.data.firmen.filter(f=>!f.entwurf && !gesehen.has(f.id)).length;
+  return p;
+}
+
+function abgleichOeffnen(){
+  Abgleich.plan = null;
+  layerZeigen(
+    '<div class="modal">'+
+      '<div class="drawer-head"><h2>Branchen abgleichen</h2><div style="flex:1"></div>'+
+      '<button class="btn ghost" data-close="1">Schliessen</button></div>'+
+      '<div class="drawer-body" id="abgleichBody">'+
+        '<div class="hint" style="margin-bottom:14px">Die bereinigte Branchenliste (xlsx) w\u00e4hlen. Jede Zeile sucht ihre Firma '+
+        '\u00fcber die AQT-ID. Es wird keine Firma neu angelegt oder gel\u00f6scht. Vorher gibt es eine Vorschau.</div>'+
+        '<div class="field" style="margin-bottom:14px"><label>Datei (xlsx)</label>'+
+          '<input type="file" id="abgleichDatei" accept=".xlsx,.xlsm"></div>'+
+        '<button class="btn primary" data-act="abgleich-lesen">Vorschau erstellen</button>'+
+      '</div></div>', {}, true);
+}
+
+function abgleichVorschauZeigen(p){
+  const n = x => Number(x).toLocaleString("de-DE");
+  const zeilenH = HAUPT_KATEGORIEN.filter(k=>p.nachHaupt[k]).map(k=>
+    '<tr><td>'+esc(k)+'</td><td style="text-align:right" class="mono">'+n(p.nachHaupt[k])+"</td></tr>").join("");
+  $("#abgleichBody").innerHTML =
+    '<div style="display:flex;flex-wrap:wrap;gap:22px;margin-bottom:16px">'+
+      '<div><div class="tiny muted">In der Datei gefunden</div><div style="font-size:22px;font-weight:700">'+n(p.gefunden)+'</div></div>'+
+      '<div><div class="tiny muted">Davon mit \u00c4nderung</div><div style="font-size:22px;font-weight:700">'+n(p.aenderungen.length)+'</div></div>'+
+      '<div><div class="tiny muted">Unver\u00e4ndert</div><div style="font-size:22px;font-weight:700">'+n(p.unveraendert)+'</div></div>'+
+    "</div>"+
+    '<div class="hint" style="margin-bottom:14px">'+
+      "Branche wird bei "+n(p.brancheNeu)+" Firmen neu gesetzt, die Gruppe bei "+n(p.gruppeNeu)+". "+
+      "Bei Konsulaten und Gro\u00dfpraxen bleiben Branche und Gruppe stehen. Bei Sicherheit \u201eniedrig\u201c "+
+      "werden Branche und Gruppe nur gef\u00fcllt, wenn sie leer sind. \u201eUngekl\u00e4rt\u201c beh\u00e4lt die alte Branche und bekommt "+
+      "die Gruppe \u201eAllgemeine Dienstleistung / B\u00fcro\u201c, falls noch keine gesetzt ist.</div>"+
+    (p.kunden ? '<div class="hint" style="margin-bottom:14px">'+n(p.kunden)+" Kunden bzw. ehemalige Kunden sind dabei. "+
+      "Status und Quelle bleiben unber\u00fchrt.</div>" : "")+
+    (p.nichtGefunden||p.unbekannt||p.doppelt ? '<div class="hint" style="margin-bottom:14px;color:var(--crit)">'+
+      (p.nichtGefunden? n(p.nichtGefunden)+" Zeilen aus der Datei gibt es im Tool nicht (werden \u00fcbersprungen, nicht angelegt). ":"")+
+      (p.unbekannt? n(p.unbekannt)+" Zeilen mit unbekannter Hauptkategorie werden \u00fcbersprungen. ":"")+
+      (p.doppelt? n(p.doppelt)+" doppelte IDs in der Datei wurden ignoriert.":"")+"</div>" : "")+
+    (p.imToolNichtInDatei ? '<div class="tiny muted" style="margin-bottom:14px">'+n(p.imToolNichtInDatei)+
+      " Firmen im Tool kommen in der Datei nicht vor und bleiben unver\u00e4ndert.</div>" : "")+
+    '<table class="data" style="width:100%;margin-bottom:16px"><thead><tr><th>Hauptkategorie laut Datei</th><th style="text-align:right">Firmen</th></tr></thead><tbody>'+
+      zeilenH+"</tbody></table>"+
+    '<div style="display:flex;gap:9px">'+
+      (p.aenderungen.length
+        ? '<button class="btn primary" data-act="abgleich-start">\u00dcbernehmen ('+n(p.aenderungen.length)+' Firmen)</button>'
+        : '<span class="hint">Nichts zu \u00e4ndern \u2013 alles ist schon auf dem Stand der Datei.</span>')+
+      '<button class="btn ghost" data-act="abgleich-zurueck">Zur\u00fcck</button></div>'+
+    '<div class="tiny muted" style="margin-top:10px">Beim \u00dcbernehmen wird vorher automatisch eine Sicherung heruntergeladen.</div>';
+}
+
+function abgleichAnwenden(){
+  const p = Abgleich.plan;
+  if(!p || !p.aenderungen.length) return;
+  sicherungHerunterladen("vor-branchenabgleich");
+  for (const a of p.aenderungen) Object.assign(a.f, a.neu);
+  const n = p.aenderungen.length;
+  Abgleich.plan = null;
+  Store.save();
+  layerSchliessen();
+  render();
+  toast(n.toLocaleString("de-DE")+" Firmen aktualisiert \u2013 keine neu angelegt");
+}
+
 /* Firmen, an denen ein Vorgang haengt, sind vor dem Loeschen im Stapel
    geschuetzt. Loeschen reisst alles Angehaengte mit - Objekte, Vorgaenge,
    Aktivitaeten, Anhaenge - und genau so ist schon einmal die halbe Pipeline
@@ -1608,7 +1763,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 21.09.2026 · B19</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 21.09.2026 · B20</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -4579,6 +4734,7 @@ function renderSetup(){
       '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:14px">'+
         '<button class="btn" data-act="export">Daten exportieren (JSON)</button>'+
         '<button class="btn" data-act="import-json">Sicherung einlesen</button>'+
+        '<button class="btn" data-act="abgleich-oeffnen">Branchen abgleichen</button>'+
         '<button class="btn danger" data-act="reset">Alles löschen</button>'+
       "</div>"+
       '<div class="tiny muted" style="margin-top:10px">'+
@@ -5377,6 +5533,23 @@ function aktion(act, el){
     }
     case "imp-zurueck": { importOeffnen(); return; }
     case "imp-start": { importAusfuehren(); return; }
+
+    /* --- Branchen-Abgleich (B20) --- */
+    case "abgleich-oeffnen": { abgleichOeffnen(); return; }
+    case "abgleich-zurueck": { abgleichOeffnen(); return; }
+    case "abgleich-lesen": {
+      const datei = $("#abgleichDatei").files[0];
+      if(!datei || !/\.(xlsx|xlsm)$/i.test(datei.name)){ toast("Bitte die xlsx-Datei wählen"); return; }
+      datei.arrayBuffer().then(xlsxLesen).then(blaetter => {
+        if(!blaetter.length){ toast("Keine Daten in der Datei gefunden"); return; }
+        const p = abgleichBerechnen(blaetter[0].zeilen);
+        if(p.fehler){ toast(p.fehler); return; }
+        Abgleich.plan = p;
+        abgleichVorschauZeigen(p);
+      }).catch(e => toast(e.message || "Datei nicht lesbar"));
+      return;
+    }
+    case "abgleich-start": { abgleichAnwenden(); return; }
 
     case "vorlage": {
       const spalten = ["Firmenname","Branche","Kontaktweg","Status","Quelle","Ansprechpartner","Telefon",

@@ -1176,6 +1176,7 @@ function optionen(liste, gewaehlt, leerText){
 /* ---------- 3b. Supabase-Zeile <-> App-Objekt übersetzen ------- */
 function sbFirmaZuApp(r){ return {
   id:r.id, name:r.name||"", branche:r.branche||"", gruppe:r.gruppe||"", segment:r.segment||"",
+  hauptkategorie:r.hauptkategorie||"", unterkategorie:r.unterkategorie||"",
   kontaktweg:r.kontaktweg||"Passiv",
   status:r.status||"Interessent", quelle:r.quelle||"",
   ansprechpartner:r.ansprechpartner||"", briefanrede:r.briefanrede||"",
@@ -1185,6 +1186,7 @@ function sbFirmaZuApp(r){ return {
 };}
 function appFirmaZuSb(f){ return {
   id:f.id, name:f.name, branche:f.branche, gruppe:f.gruppe||"", segment:f.segment||"",
+  hauptkategorie:f.hauptkategorie||"", unterkategorie:f.unterkategorie||"",
   kontaktweg:f.kontaktweg,
   status:f.status, quelle:f.quelle||"", ansprechpartner:f.ansprechpartner, briefanrede:f.briefanrede||"",
   telefon:f.telefon, email:f.email, website:f.website, strasse:f.strasse, plz:f.plz, ort:f.ort,
@@ -1292,7 +1294,7 @@ const DB = {
 
 function neueFirma(p){
   const f = Object.assign({
-    id:uid(), name:"", branche:"", gruppe:"", segment:"", kontaktweg:"Passiv", status:"Interessent",
+    id:uid(), name:"", branche:"", gruppe:"", segment:"", hauptkategorie:"", unterkategorie:"", kontaktweg:"Passiv", status:"Interessent",
     quelle:"", ansprechpartner:"", briefanrede:"", telefon:"", email:"", website:"",
     strasse:"", plz:"", ort:"", notiz:"", gesperrt:false, briefe:[], angelegt:new Date().toISOString()
   }, p||{});
@@ -1606,7 +1608,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 16.09.2026 · B18</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 21.09.2026 · B19</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+

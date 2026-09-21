@@ -1615,16 +1615,93 @@ function dubNorm(s){
   return s;
 }
 function dubSchluessel(f){ return dubNorm(f.name)+"|"+dubNorm(f.ort); }
+/* B21: zusaetzlich gleicher Name + PLZ + Strasse. Faengt Faelle, bei denen
+   nur der Ort anders geschrieben ist (Rodgau / Rodgau-Nieder-Roden). */
+function dubStrasse(s){
+  return String(s==null?"":s).toLowerCase().replace(/str\./g,"strasse").replace(/stra\u00dfe/g,"strasse").replace(/[^a-z0-9]/g,"");
+}
 function dublettenGruppen(){
-  const map = {};
-  for(const f of Store.data.firmen){
+  const firmen = Store.data.firmen.filter(f=>!f.entwurf && dubNorm(f.name));
+  const eltern = new Map(firmen.map(f=>[f.id,f.id]));
+  const wurzel = id => { while(eltern.get(id)!==id){ eltern.set(id, eltern.get(eltern.get(id))); id = eltern.get(id); } return id; };
+  const verbinden = (a,b) => { const x=wurzel(a), y=wurzel(b); if(x!==y) eltern.set(x,y); };
+  const erster = {};
+  const merke = (k,f) => { if(erster[k]) verbinden(erster[k],f.id); else erster[k]=f.id; };
+  for(const f of firmen){
     const nk = dubNorm(f.name);
-    if(!nk) continue;
-    const k = nk+"|"+dubNorm(f.ort);
-    (map[k] = map[k] || []).push(f);
+    merke("O|"+nk+"|"+dubNorm(f.ort), f);
+    const st = dubStrasse(f.strasse);
+    if(f.plz && st) merke("S|"+nk+"|"+f.plz+"|"+st, f);
   }
+  const map = {};
+  for(const f of firmen) (map[wurzel(f.id)] = map[wurzel(f.id)] || []).push(f);
   return Object.values(map).filter(g => g.length>1)
     .sort((a,b)=>(a[0].name||"").localeCompare(b[0].name||"","de"));
+}
+
+/* ---------- Zusammenlegen (B21) -----------------------------------
+   Eine Firma bleibt stehen. Leere Felder werden aus den anderen ergaenzt,
+   Objekte, Vorgaenge (samt Aktivitaeten/Anhaengen) und Briefvermerke
+   werden umgehaengt, erst danach verschwindet der Doppelgaenger. */
+const DUB_FELDER = [["name","Firma"],["strasse","Stra\u00dfe"],["plz","PLZ"],["ort","Ort"],["telefon","Telefon"],["email","E-Mail"],
+  ["website","Website"],["ansprechpartner","Ansprechpartner"],["status","Status"],["quelle","Quelle"],
+  ["hauptkategorie","Hauptkategorie"],["branche","Branche"],["gruppe","Gruppe"],["notiz","Notiz"]];
+const DUB_STATUS_RANG = ["Kunde","Ehemaliger Kunde","Kein Interesse","Verloren","Interessent"];
+function dubPunkte(f){
+  let p = 0;
+  for(const [k] of DUB_FELDER) if(f[k]) p++;
+  p += DB.vorgaengeVon(f.id).length*5 + Store.data.objekte.filter(o=>o.firmaId===f.id).length*3 + (f.briefe||[]).length;
+  if(f.status==="Kunde"||f.status==="Ehemaliger Kunde") p += 20;
+  return p;
+}
+function dubMergeOeffnen(ids){
+  const fs = ids.map(id=>DB.firma(id)).filter(Boolean);
+  if(fs.length<2){ toast("Diese Firmen gibt es nicht mehr"); dublettenZeigen(); return; }
+  const beste = fs.slice().sort((a,b)=>dubPunkte(b)-dubPunkte(a))[0].id;
+  const spalte = f => {
+    const nv = DB.vorgaengeVon(f.id).length, no = Store.data.objekte.filter(o=>o.firmaId===f.id).length;
+    let h = '<div style="flex:1;min-width:0;padding:0 8px"><label style="display:flex;gap:6px;align-items:center;font-weight:700;margin-bottom:8px">'+
+      '<input type="radio" name="dubKeep" value="'+esc(f.id)+'"'+(f.id===beste?" checked":"")+"> Diese behalten</label>";
+    for(const [k,l] of DUB_FELDER){
+      h += '<div class="tiny" style="margin-bottom:3px"><span class="muted">'+l+":</span> "+(f[k]?esc(String(f[k]).slice(0,120)):'<span class="muted">\u2014</span>')+"</div>";
+    }
+    h += '<div class="tiny" style="margin-top:6px"><strong>'+nv+"</strong> Vorg\u00e4nge \u00b7 <strong>"+no+"</strong> Objekte \u00b7 <strong>"+(f.briefe||[]).length+"</strong> Briefvermerke</div></div>";
+    return h;
+  };
+  layerZeigen('<div class="modal"><div class="drawer-head"><h2>Zusammenlegen</h2></div>'+
+    '<div class="drawer-body" style="max-height:62vh;overflow:auto">'+
+      '<div class="hint" style="margin-bottom:12px">Die gew\u00e4hlte Firma bleibt. Leere Felder werden aus der anderen erg\u00e4nzt, Notizen zusammengeh\u00e4ngt, '+
+      "Vorg\u00e4nge, Objekte und Briefvermerke umgeh\u00e4ngt. Beim Status gewinnt der \u201ewichtigere\u201c (Kunde vor Kein Interesse vor Interessent).</div>"+
+      '<div style="display:flex;gap:8px;border:1px solid var(--line);border-radius:8px;padding:10px 2px">'+fs.map(spalte).join("")+"</div></div>"+
+    '<div class="drawer-foot"><button class="btn primary" data-dub-do="'+esc(ids.join(","))+'">Zusammenlegen</button>'+
+    '<button class="btn ghost" data-act="dub-pruefen">Zur\u00fcck</button></div></div>', {}, true);
+}
+function dubMergeAusfuehren(ids, keeperId){
+  const keeper = DB.firma(keeperId);
+  const andere = ids.filter(i=>i!==keeperId).map(i=>DB.firma(i)).filter(Boolean);
+  if(!keeper || !andere.length){ toast("Nichts zu tun"); return; }
+  if(!App.dubSicherung){ sicherungHerunterladen("vor-dublettenmerge"); App.dubSicherung = true; }
+  for(const o of andere){
+    for(const [k] of DUB_FELDER){
+      if(k==="name"||k==="notiz"||k==="status") continue;
+      if(!keeper[k] && o[k]) keeper[k] = o[k];
+    }
+    if(o.segment && !keeper.segment) keeper.segment = o.segment;
+    if(o.unterkategorie && !keeper.unterkategorie) keeper.unterkategorie = o.unterkategorie;
+    if(o.briefanrede && !keeper.briefanrede) keeper.briefanrede = o.briefanrede;
+    if(o.notiz && (keeper.notiz||"").indexOf(o.notiz)<0) keeper.notiz = keeper.notiz ? keeper.notiz+"\n"+o.notiz : o.notiz;
+    if(DUB_STATUS_RANG.indexOf(o.status) >= 0 && DUB_STATUS_RANG.indexOf(o.status) < DUB_STATUS_RANG.indexOf(keeper.status)) keeper.status = o.status;
+    if(o.gesperrt) keeper.gesperrt = true;
+    if(o.angelegt && (!keeper.angelegt || o.angelegt < keeper.angelegt)) keeper.angelegt = o.angelegt;
+    keeper.briefe = keeper.briefe || [];
+    for(const b of (o.briefe||[])) if(!keeper.briefe.some(x=>x.datum===b.datum && x.anlass===b.anlass)) keeper.briefe.push(b);
+    for(const ob of Store.data.objekte)   if(ob.firmaId===o.id) ob.firmaId = keeper.id;
+    for(const v of Store.data.vorgaenge)  if(v.firmaId===o.id)  v.firmaId  = keeper.id;
+  }
+  firmenLoeschen(andere.map(o=>o.id));   /* haengt nichts mehr dran */
+  Store.save(); render();
+  toast("Zusammengelegt \u2013 "+andere.length+" Doppelg\u00e4nger entfernt, nichts verloren");
+  dublettenZeigen();
 }
 function dublettenZeigen(){
   const gruppen = dublettenGruppen();
@@ -1634,8 +1711,8 @@ function dublettenZeigen(){
   } else {
     const anzahl = gruppen.reduce((n,g)=>n+g.length,0);
     b = '<div class="hint" style="margin-bottom:14px">'+gruppen.length+" Gruppen ("+anzahl+
-      " Eintr\u00e4ge) mit gleichem Namen und Ort \u2013 nur die Schreibweise unterscheidet sich. "+
-      "L\u00f6sch jeweils den \u00fcberfl\u00fcssigen; der andere bleibt stehen.</div>";
+      " Eintr\u00e4ge) mit gleichem Namen und Ort oder gleichem Namen und gleicher Adresse. "+
+      "\u201eZusammenlegen\u201c f\u00fchrt beide Eintr\u00e4ge zu einem zusammen, ohne dass Vorg\u00e4nge verloren gehen.</div>";
     for(const g of gruppen){
       b += '<div style="border:1px solid var(--line);border-radius:8px;padding:4px 10px;margin-bottom:10px">';
       g.forEach((f,i)=>{
@@ -1651,6 +1728,7 @@ function dublettenZeigen(){
           '<button class="btn danger sm" data-dub-del="'+f.id+'">L\u00f6schen</button>'+
         "</div>";
       });
+      b += '<div style="padding:6px 0 8px"><button class="btn primary sm" data-dub-merge="'+g.map(f=>f.id).join(",")+'">Zusammenlegen …</button></div>';
       b += "</div>";
     }
   }
@@ -1763,7 +1841,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 21.09.2026 · B20</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 21.09.2026 · B21</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -5102,6 +5180,15 @@ document.addEventListener("click", e => {
 
   const so = t.getAttribute("data-sort");
   if(so){ if(App.firmenSort && App.firmenSort.feld===so) App.firmenSort.richtung*=-1; else App.firmenSort={feld:so,richtung:1}; render(); return; }
+
+  const dubMerge = t.getAttribute("data-dub-merge");
+  if(dubMerge){ dubMergeOeffnen(dubMerge.split(",")); return; }
+  const dubDo = t.getAttribute("data-dub-do");
+  if(dubDo){
+    const r = document.querySelector('input[name="dubKeep"]:checked');
+    if(!r){ toast("Bitte die Firma wählen, die bleibt"); return; }
+    dubMergeAusfuehren(dubDo.split(","), r.value); return;
+  }
 
   const dubDel = t.getAttribute("data-dub-del");
   if(dubDel){ firmenLoeschen([dubDel]); Store.save(); render(); dublettenZeigen(); toast("Firma gelöscht"); return; }

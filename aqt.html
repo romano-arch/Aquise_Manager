@@ -1176,7 +1176,7 @@ function optionen(liste, gewaehlt, leerText){
 /* ---------- 3b. Supabase-Zeile <-> App-Objekt übersetzen ------- */
 function sbFirmaZuApp(r){ return {
   id:r.id, name:r.name||"", branche:r.branche||"", gruppe:r.gruppe||"", segment:r.segment||"",
-  hauptkategorie:r.hauptkategorie||"", unterkategorie:r.unterkategorie||"",
+  hauptkategorie:r.hauptkategorie||"", unterkategorie:r.unterkategorie||"", ablage:r.ablage||"",
   kontaktweg:r.kontaktweg||"Passiv",
   status:r.status||"Interessent", quelle:r.quelle||"",
   ansprechpartner:r.ansprechpartner||"", briefanrede:r.briefanrede||"",
@@ -1186,7 +1186,7 @@ function sbFirmaZuApp(r){ return {
 };}
 function appFirmaZuSb(f){ return {
   id:f.id, name:f.name, branche:f.branche, gruppe:f.gruppe||"", segment:f.segment||"",
-  hauptkategorie:f.hauptkategorie||"", unterkategorie:f.unterkategorie||"",
+  hauptkategorie:f.hauptkategorie||"", unterkategorie:f.unterkategorie||"", ablage:f.ablage||"",
   kontaktweg:f.kontaktweg,
   status:f.status, quelle:f.quelle||"", ansprechpartner:f.ansprechpartner, briefanrede:f.briefanrede||"",
   telefon:f.telefon, email:f.email, website:f.website, strasse:f.strasse, plz:f.plz, ort:f.ort,
@@ -1294,7 +1294,7 @@ const DB = {
 
 function neueFirma(p){
   const f = Object.assign({
-    id:uid(), name:"", branche:"", gruppe:"", segment:"", hauptkategorie:"", unterkategorie:"", kontaktweg:"Passiv", status:"Interessent",
+    id:uid(), name:"", branche:"", gruppe:"", segment:"", hauptkategorie:"", unterkategorie:"", ablage:"", kontaktweg:"Passiv", status:"Interessent",
     quelle:"", ansprechpartner:"", briefanrede:"", telefon:"", email:"", website:"",
     strasse:"", plz:"", ort:"", notiz:"", gesperrt:false, briefe:[], angelegt:new Date().toISOString()
   }, p||{});
@@ -1841,7 +1841,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 21.09.2026 · B21</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 21.09.2026 · B22</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -1888,7 +1888,7 @@ const App = {
   seite:"pipeline",
   pipelineAnsicht:"board",   // board | faellig
   passiveZeigen:false,
-  firmenFilter:{ name:"", branche:"", gruppe:"", segment:"", kontaktweg:"", status:"", quelle:"", ort:"", plz:"" },
+  firmenFilter:{ name:"", branche:"", gruppe:"", segment:"", kontaktweg:"", status:"", quelle:"", ort:"", plz:"", ablage:"" },
   firmenSort:{ feld:"name", richtung:1 },
   auswahl:new Set(),
   aktOffen:new Set()      /* aufgeklappte Chronik-Einträge */
@@ -3582,7 +3582,9 @@ function firmenGefiltert(){
     (!f.segment    || x.segment===f.segment) &&
     (!f.kontaktweg || x.kontaktweg===f.kontaktweg) &&
     (!f.status     || x.status===f.status) &&
-    (!f.quelle     || x.quelle===f.quelle)
+    (!f.quelle     || x.quelle===f.quelle) &&
+    /* B22: Ablage ist standardmaessig ausgeblendet; "*" = nur Ablage */
+    ((f.ablage||"")==="" ? !x.ablage : (f.ablage==="*" ? !!x.ablage : x.ablage===f.ablage))
   ).sort((a,b)=>{
     const s = App.firmenSort || { feld:"name", richtung:1 };
     const wert = x => s.feld==="vorgaenge" ? DB.vorgaengeVon(x.id).length : String(x[s.feld]==null?"":x[s.feld]).toLowerCase();
@@ -3594,6 +3596,12 @@ function firmenGefiltert(){
 
 function renderFirmen(){
   $("#pageActions").innerHTML =
+    (function(){
+      const nA = Store.data.firmen.filter(x=>x.ablage).length;
+      return (App.firmenFilter.ablage||"")!==""
+        ? '<button class="btn primary" data-act="ablage-toggle">← Zurück zur Firmenliste</button>'
+        : '<button class="btn" data-act="ablage-toggle">Ablage ('+nA+')</button>';
+    })()+
     '<button class="btn" data-act="ausserhalb">Außerhalb Rhein-Main</button>'+
     '<button class="btn" data-act="dub-pruefen">Dubletten prüfen</button>'+
     '<button class="btn" data-act="import-oeffnen">Liste importieren</button>'+
@@ -3634,11 +3642,14 @@ function renderFirmen(){
       '<button class="btn sm" data-act="auswahl-alle">Alle '+liste.length+" gefilterten"+"</button>"+
       '<button class="btn sm ghost" style="color:#B9C9D4" data-act="auswahl-leeren">Aufheben</button>'+
       '<div style="flex:1"></div>'+
-      '<button class="btn sm" data-act="weg-aktiv">→ Aktiv</button>'+
+      ((f.ablage||"")!==""
+        ? '<button class="btn sm" data-act="ablage-zurueck">Zur\u00fcckholen</button>'
+        : '<button class="btn sm" data-act="weg-aktiv">→ Aktiv</button>'+
       '<button class="btn sm" data-act="weg-passiv">→ Passiv</button>'+
       '<button class="btn sm" data-act="serienbrief">Serienbrief-Export</button>'+
       '<button class="btn sm" data-act="digitalpost">Digitalpost (.xlsx)</button>'+
       '<button class="btn sm" data-act="brief-sammelvermerk">Brief vermerken</button>'+
+          '<button class="btn sm" data-act="ablage-dialog">In Ablage \u2026</button>')+
       '<button class="btn danger sm" data-act="auswahl-loeschen">Auswahl löschen</button></div>';
   }
 
@@ -3696,6 +3707,7 @@ function renderFirmen(){
       h += "<tr"+(sel?' class="sel"':"")+">"+
         '<td><input type="checkbox" data-pick="'+x.id+'"'+(sel?" checked":"")+"></td>"+
         '<td class="cellname"><button class="linkish" data-firma="'+x.id+'">'+esc(x.name||"(ohne Namen)")+"</button>"+
+          (x.ablage?'<span class="chip" style="margin-left:6px">'+esc(x.ablage)+"</span>":"")+
           (x.ansprechpartner?'<div class="tiny muted">'+esc(x.ansprechpartner)+"</div>":"")+"</td>"+
         "<td>"+(x.branche?esc(x.branche):'<span class="tiny muted">—</span>')+"</td>"+
         '<td>'+(x.gruppe?'<span class="tiny">'+esc(x.gruppe)+"</span>":'<span class="tiny muted">—</span>')+"</td>"+
@@ -4341,8 +4353,8 @@ function serienbriefExport2(ids){
   let liste = ids.length
     ? Store.data.firmen.filter(f=>ids.includes(f.id))
     : firmenGefiltert();
-  const gesperrtRaus = liste.filter(f=>f.gesperrt).length;
-  liste = liste.filter(f=>!f.gesperrt);
+  const gesperrtRaus = liste.filter(f=>f.gesperrt||f.ablage).length;
+  liste = liste.filter(f=>!f.gesperrt && !f.ablage);
   if(!liste.length){ toast("Keine anschreibbaren Firmen (alle gesperrt?)"); return; }
   if(gesperrtRaus) toast(gesperrtRaus+" gesperrte Firma"+(gesperrtRaus>1?"n":"")+" ausgelassen");
 
@@ -4682,8 +4694,8 @@ function digitalpostExport2(ids){
   let liste = (ids && ids.length)
     ? Store.data.firmen.filter(f=>ids.includes(f.id))
     : firmenGefiltert();
-  const gesperrtRaus = liste.filter(f=>f.gesperrt).length;
-  liste = liste.filter(f=>!f.gesperrt);
+  const gesperrtRaus = liste.filter(f=>f.gesperrt||f.ablage).length;
+  liste = liste.filter(f=>!f.gesperrt && !f.ablage);
   if(!liste.length){ toast("Keine anschreibbaren Firmen (alle gesperrt?)"); return; }
   if(gesperrtRaus) toast(gesperrtRaus+" gesperrte Firma"+(gesperrtRaus>1?"n":"")+" ausgelassen");
 
@@ -5523,6 +5535,46 @@ function aktion(act, el){
       else toast("Alle stehen schon auf "+ziel);
       return;
     }
+    /* --- Ablage (B22) --- */
+    case "ablage-toggle": {
+      App.firmenFilter.ablage = (App.firmenFilter.ablage||"")==="" ? "*" : "";
+      App.auswahl.clear(); render(); return;
+    }
+    case "ablage-dialog": {
+      const ids = [...App.auswahl];
+      if(!ids.length){ toast("Erst Firmen auswählen"); return; }
+      const geschuetzt = ids.filter(firmaHatVorgaenge).length;
+      const ablegbar = ids.length - geschuetzt;
+      if(!ablegbar){ toast("Alle ausgewählten Firmen haben Vorgänge und bleiben in der Liste"); return; }
+      const namen = [...new Set(Store.data.firmen.map(x=>x.ablage).filter(Boolean))];
+      layerZeigen('<div class="modal"><div class="drawer-head"><h2>In Ablage verschieben</h2></div>'+
+        '<div class="drawer-body"><div class="hint" style="margin-bottom:14px"><strong>'+ablegbar+'</strong> Firmen werden in die Ablage gelegt. '+
+        'Nichts wird gelöscht: sie verschwinden nur aus der Firmenliste, dem Serienbrief und der Digitalpost. '+
+        'Zurückholen geht jederzeit über den Knopf „Ablage“.'+
+        (geschuetzt ? ' '+geschuetzt+' Firmen mit Vorgängen bleiben in der Liste.' : '')+'</div>'+
+        '<div class="field"><label>Name der Ablage</label><input id="ablageName" list="ablageNamen" value="Uninteressant">'+
+        '<datalist id="ablageNamen">'+namen.map(n=>'<option value="'+esc(n)+'">').join("")+'</datalist></div></div>'+
+        '<div class="drawer-foot"><button class="btn primary" data-act="ablage-start">In Ablage legen</button>'+
+        '<button class="btn ghost" data-close="1">Abbrechen</button></div></div>', {}, true);
+      return;
+    }
+    case "ablage-start": {
+      const name = ($("#ablageName").value||"").trim() || "Uninteressant";
+      let n = 0;
+      for (const f of Store.data.firmen){
+        if(App.auswahl.has(f.id) && !firmaHatVorgaenge(f.id)){ f.ablage = name; n++; }
+      }
+      App.auswahl.clear(); Store.save(); layerSchliessen(); render();
+      toast(n+" Firmen in „"+name+"“ abgelegt");
+      return;
+    }
+    case "ablage-zurueck": {
+      let n = 0;
+      for (const f of Store.data.firmen){ if(App.auswahl.has(f.id) && f.ablage){ f.ablage = ""; n++; } }
+      App.auswahl.clear(); Store.save(); render();
+      toast(n+" Firmen zurückgeholt");
+      return;
+    }
     case "auswahl-alle": { firmenGefiltert().forEach(x=>App.auswahl.add(x.id)); render(); return; }
     case "auswahl-leeren": { App.auswahl.clear(); render(); return; }
     case "filter-zuruecksetzen": {
@@ -5573,7 +5625,7 @@ function aktion(act, el){
         });
       return;
     }
-    case "filter-reset": { App.firmenFilter={name:"",branche:"",gruppe:"",segment:"",kontaktweg:"",status:"",quelle:"",ort:"",plz:""}; render(); return; }
+    case "filter-reset": { App.firmenFilter={name:"",branche:"",gruppe:"",segment:"",kontaktweg:"",status:"",quelle:"",ort:"",plz:"",ablage:""}; render(); return; }
 
     /* --- Serienbrief Track Passiv (Abschnitt 9b) --- */
     case "serienbrief": { serienbriefExport([...App.auswahl]); return; }

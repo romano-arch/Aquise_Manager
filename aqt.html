@@ -737,11 +737,16 @@ const Spiegel = {
     await new Promise(r => setTimeout(r, 0));   /* mehrere Saves bündeln */
     while(Object.keys(this._warte).length){
       const w = this._warte; this._warte = {};
+      /* B24: Zeitstempel mitschreiben. Faellt IndexedDB zeitweise aus und
+         der Stand landet in localStorage, kann sonst beim naechsten Login
+         die (dann veraltete) IndexedDB-Kopie den neueren Fallback
+         verdraengen. */
+      if("daten" in w) w.daten_zeit = Date.now();
       try{
         await this._put(w);
         this.modus = "idb"; this.fehler = ""; this.zuletzt = new Date();
         try{
-          if("daten" in w){ localStorage.removeItem("aqt.v1"); localStorage.setItem("aqt.spiegel", "idb"); }
+          if("daten" in w){ localStorage.removeItem("aqt.v1"); localStorage.removeItem("aqt.v1.zeit"); localStorage.setItem("aqt.spiegel", "idb"); }
           if("offen" in w) localStorage.removeItem("aqt.offen");
         }catch(_){}
         speicherWarnung("lokal", "");
@@ -749,7 +754,11 @@ const Spiegel = {
         console.warn("IndexedDB:", e);
         let ok = true;
         try{
-          if("daten" in w){ localStorage.setItem("aqt.v1", JSON.stringify(w.daten)); localStorage.removeItem("aqt.spiegel"); }
+          if("daten" in w){
+            localStorage.setItem("aqt.v1", JSON.stringify(w.daten));
+            localStorage.setItem("aqt.v1.zeit", String(w.daten_zeit || Date.now()));
+            localStorage.removeItem("aqt.spiegel");
+          }
           if("offen" in w) localStorage.setItem("aqt.offen", JSON.stringify(w.offen || {}));
         }catch(e2){ ok = false; }
         this.modus  = ok ? "localStorage" : "";
@@ -1771,9 +1780,21 @@ function loginZeigen(fehler){
     try{
       /* Lokale Daten sichern, bevor wir Store überschreiben */
       let lokal = JSON.parse(JSON.stringify(Store.data));
-      /* B18: aktuelle Kopie liegt in IndexedDB; aqt.v1 nur noch Altbestand */
+      /* B18: aktuelle Kopie liegt in IndexedDB; aqt.v1 nur noch Altbestand.
+         B24: War IndexedDB zwischenzeitlich nicht erreichbar, kann der
+         localStorage-Fallback neuer sein als die IndexedDB-Kopie. Deshalb
+         beide Zeitstempel vergleichen statt IndexedDB blind zu bevorzugen. */
       const gespiegelt = await Spiegel.lesen("daten");
-      if(gespiegelt && Array.isArray(gespiegelt.firmen)) lokal = gespiegelt;
+      const zeitIdb = Number(await Spiegel.lesen("daten_zeit")) || 0;
+      let zeitLokal = 0;
+      try{ zeitLokal = Number(localStorage.getItem("aqt.v1.zeit")) || 0; }catch(_){}
+      let lsFallback = null;
+      try{ const r = localStorage.getItem("aqt.v1"); lsFallback = r ? JSON.parse(r) : null; }catch(_){ lsFallback = null; }
+      if(lsFallback && Array.isArray(lsFallback.firmen) && zeitLokal > zeitIdb){
+        lokal = lsFallback;
+      } else if(gespiegelt && Array.isArray(gespiegelt.firmen)){
+        lokal = gespiegelt;
+      }
       let offen = await Spiegel.lesen("offen");
       if(!offen){ try{ offen = JSON.parse(localStorage.getItem("aqt.offen") || "null"); }catch(_){ offen = null; } }
       await SB.login(mail, pw);
@@ -1807,15 +1828,11 @@ function loginZeigen(fehler){
           }
         }
       }
-      const einspielen = (schluessel) => {
-        const da = new Set((Store.data[schluessel]||[]).map(r=>r.id));
-        for(const r of (lokal[schluessel]||[])){
-          if(r.entwurf) continue;
-          if(!da.has(r.id)){ Store.data[schluessel].push(r); uebernommen++; }
-        }
-      };
-      einspielen("firmen"); einspielen("objekte");
-      einspielen("vorgaenge"); einspielen("aktivitaeten");
+      /* B24: Kein blindes einspielen() mehr. Was wirklich lokal offen war,
+         steht schon oben ueber die "offen" (g/w)-Liste drin – ein
+         zusaetzliches "fehlt in der Cloud, also wieder anlegen" traf auch
+         Eintraege, die auf einem anderen Rechner absichtlich geloescht
+         wurden, und liess sie wieder auftauchen. */
       if(uebernommen){
         Store.save();
         Sync.anstossen();
@@ -1841,7 +1858,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 21.09.2026 · B22</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 22.09.2026 · B24</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -2597,8 +2614,15 @@ function terminAutomatik(v, altFrist, altAngebot){
     for (const x of (v.wiedervorlagen||[]))
       if(!x.erledigt && (x.anlass||"").indexOf("Angebot vor Frist") === 0) x.erledigt = true;
     const tage = nachfassFrist(v);
-    const offen = (v.wiedervorlagen||[]).some(x => !x.erledigt && (x.anlass||"").indexOf("Nachfassen") === 0);
-    if(!offen){
+    /* B24: Bei einer Versandkorrektur die bestehende(n) offene(n)
+       Nachfassen-Wiedervorlage(n) mitverschieben statt sie stehen zu
+       lassen oder die Automatik durch sie blockieren zu lassen. */
+    const offeneNachfass = (v.wiedervorlagen||[]).filter(x => !x.erledigt && (x.anlass||"").indexOf("Nachfassen") === 0);
+    if(offeneNachfass.length){
+      const neuesDatum = plusTage(tage, v.angebotAm);
+      for (const w of offeneNachfass) w.datum = neuesDatum;
+      meldungen.push("Nachfasstermin an neues Versanddatum angepasst");
+    } else {
       wvSetzen(v, plusTage(tage, v.angebotAm), "Nachfassen zum Angebot (Stufe 1)");
       meldungen.push("Nachfassen in "+tage+" Tagen vorgemerkt");
     }
@@ -2625,7 +2649,7 @@ function fristenNachtragen(){
       const tag = (erste && erste.datum) || (v.angelegt ? ISO(v.angelegt) : "");
       if(tag){ v.anfrageAm = tag; n++; }
     }
-    if(!v.nachfassTage) v.nachfassTage = 7;
+    if(!v.nachfassTage) v.nachfassTage = 10;
     /* Die frühere Spalte "Angebot erstellt" gibt es nicht mehr */
     if(v.stufe === "angebot_erstellt"){ v.stufe = "angebot_versendet"; n++; }
   }
@@ -3595,6 +3619,11 @@ function firmenGefiltert(){
 }
 
 function renderFirmen(){
+  /* B23: Scrollposition der Liste merken, bevor #content neu aufgebaut wird
+     (z.B. nach Speichern/Löschen einer Firma) – sonst springt die Liste
+     bei jedem Render auf Anfang zurück. */
+  const _firmenScrollWrap = document.querySelector(".tablewrap.fixhead");
+  const _firmenScrollY = _firmenScrollWrap ? _firmenScrollWrap.scrollTop : 0;
   $("#pageActions").innerHTML =
     (function(){
       const nA = Store.data.firmen.filter(x=>x.ablage).length;
@@ -3728,6 +3757,8 @@ function renderFirmen(){
   h += "</tbody></table></div></div>";
   $("#content").innerHTML = h;
   tabelleFixieren();
+  const _wrapNeu = document.querySelector(".tablewrap.fixhead");
+  if(_wrapNeu) _wrapNeu.scrollTop = _firmenScrollY;
 }
 
 /* Gibt dem Tabellenbereich die Resthoehe bis zum unteren Fensterrand und

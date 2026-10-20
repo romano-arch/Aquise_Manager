@@ -138,7 +138,7 @@ select{appearance:none; background-image:linear-gradient(45deg,transparent 50%,v
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 /* Der Betreff darf zwei Zeilen haben, danach wird gekürzt – sonst
    werden die Karten unterschiedlich hoch und die Spalte unruhig. */
-.vcard .v-titel{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+.vcard .v-titel{display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical;
   overflow:hidden; font-size:13px; font-weight:500; color:var(--ink-2);
   margin:2px 0 6px; line-height:1.32}
 .vcard .v-objekt{display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -386,6 +386,94 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:po
 }
 .anhzeile .nm{flex:1; min-width:0; font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 
+/* ---------- B25: Fenster im Pipedrive-Aufbau --------------------
+   Links stehen immer die Stammdaten (wer, wo, welche Nummer), rechts
+   was jetzt zu tun ist und was schon passiert ist. Jeder Knopf gibt es
+   nur einmal, pro Fenster genau ein blauer. */
+.fx{background:var(--bg); width:min(1180px,100%); height:90dvh; display:flex; flex-direction:column; border-radius:10px; overflow:hidden}
+.fx-head{background:var(--surface); border-bottom:1px solid var(--line); padding:16px 22px 14px; display:flex; flex-direction:column; gap:12px}
+.fx-top{display:flex; align-items:flex-start; gap:14px}
+.fx-titel{flex:1; min-width:0}
+.fx-titel h2{font-size:20px; font-weight:700; line-height:1.25; overflow-wrap:anywhere; margin-top:3px}
+.fx-titel .unter{font-size:14px; color:var(--ink-2); margin-top:2px; overflow-wrap:anywhere}
+.fx-aktionen{display:flex; gap:8px; align-items:center; position:relative; flex-wrap:wrap; justify-content:flex-end}
+.btn.won{color:var(--ok); border-color:var(--ok-line)}
+.btn.lost{color:var(--crit); border-color:var(--crit-line)}
+.fx-menu{position:absolute; top:42px; right:0; z-index:20; background:var(--surface); border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 24px rgba(20,32,42,.16); padding:6px; display:flex; flex-direction:column; min-width:230px}
+.fx-menu .btn{text-align:left; border-color:transparent; background:none}
+.fx-menu .btn:hover{background:var(--surface-3)}
+.fx-menu .rot{color:var(--crit)}
+.fx-stufen{display:flex; gap:4px}
+.fx-stufen button{flex:1; background:none; border:0; padding:0; text-align:left; min-width:0}
+.fx-stufen .bar{height:6px; border-radius:3px; background:var(--line)}
+.fx-stufen .an .bar{background:var(--accent)}
+.fx-stufen .ende .bar{background:var(--ok)}
+.fx-stufen .nm{font-size:11.5px; color:var(--ink-2); margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.fx-stufen .jetzt-st .nm{color:var(--accent); font-weight:700}
+.fx-stufen button[data-act]:hover .bar{filter:brightness(.88)}
+.fx-stufen button:not([data-act]){cursor:default}
+.fx-body{flex:1; min-height:0; display:flex; gap:18px; padding:18px 22px; overflow:hidden}
+.fx-side{width:320px; flex:0 0 320px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding-bottom:12px}
+.fx-main{flex:1; min-width:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding-bottom:12px}
+.fx-main .jetzt{margin-bottom:0}
+.jetzt.info{background:var(--accent-soft); border-color:#B4D2E5}
+.jetzt.info .kopf{color:var(--accent)}
+.fx-card{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:13px 15px}
+.fx-card-kopf{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px}
+.fx-lbl{font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2); display:flex; align-items:center; gap:7px}
+.fx-name{font-size:16.5px; font-weight:700; margin-top:6px; overflow-wrap:anywhere}
+.fx-funk{font-size:13px; color:var(--ink-2)}
+.fx-tel{display:flex; align-items:center; gap:9px; font-size:17px; font-weight:700; text-decoration:none; margin-top:10px; color:var(--accent)}
+.fx-link{display:flex; align-items:center; gap:9px; font-size:14px; text-decoration:none; margin-top:7px; overflow-wrap:anywhere; min-width:0}
+.fx-tel svg,.fx-link svg,.fx-fehlt svg{flex:0 0 auto}
+.fx-fehlt{display:flex; align-items:center; gap:9px; font-size:13.5px; color:var(--warn); font-weight:600; margin-top:7px; flex-wrap:wrap}
+.fx-adr{font-size:13.5px; color:var(--ink-2); margin-top:6px; line-height:1.5}
+.fx-mini{display:flex; gap:14px; margin-top:8px; font-size:13px; font-weight:600; flex-wrap:wrap}
+.fx-mini a{text-decoration:none}
+.fx-zeile{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0; font-size:13.5px}
+.fx-zeile > label{color:var(--ink-2); flex:0 0 auto; font-size:13px}
+.fx-zeile input,.fx-zeile select{width:auto; max-width:175px; padding:4px 7px; font-size:13px}
+.fx-zeile select{padding-right:26px; background-position:calc(100% - 13px) 12px,calc(100% - 8px) 12px}
+.fx-zeile input.crit{color:var(--crit); font-weight:650; border-color:var(--crit-line)}
+.linkbtn{background:none; border:0; padding:0; color:var(--accent); font-weight:600; font-size:12.5px; cursor:pointer}
+.linkbtn:hover{text-decoration:underline}
+.fx-tabs{display:flex; gap:2px; border-bottom:1px solid var(--line); padding:0 8px; flex-wrap:wrap}
+.fx-tabs button{background:none; border:0; border-bottom:2px solid transparent; padding:11px 12px 9px; font-size:13.5px; font-weight:600; color:var(--ink-2)}
+.fx-tabs button.on{color:var(--accent); border-bottom-color:var(--accent); font-weight:700}
+.fx-pane{padding:13px 15px}
+.fx-pane + .fx-pane{padding-top:0}
+.fx-tasten{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center}
+.fx-plan{display:flex; align-items:center; gap:10px; padding:7px 0; border-top:1px solid var(--surface-3); font-size:13.5px}
+.fx-plan .dt{font-family:var(--mono); font-size:12px; color:var(--ink-2); width:66px; flex:0 0 66px}
+.fx-plan .an{flex:1; min-width:0}
+.fx-plan .wann{font-size:12px; color:var(--ink-2); white-space:nowrap}
+.fx-plan .wann.crit{color:var(--crit); font-weight:700}
+.fx-plan .wann.warn{color:var(--warn); font-weight:700}
+.fx-plan.zu .an,.fx-plan.zu .dt{color:var(--ink-3); text-decoration:line-through}
+.fx-chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:7px}
+.fx-split{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px}
+.fx-split .vcard{margin-bottom:6px}
+.fx-foot{background:var(--surface); border-top:1px solid var(--line); padding:11px 22px; display:flex; gap:9px; align-items:center; padding-bottom:calc(11px + env(safe-area-inset-bottom))}
+.fx-imp{margin-top:8px; font-size:12.5px; color:var(--ink-2)}
+.fx-imp summary{cursor:pointer; color:var(--accent); font-weight:600}
+.fx-imp pre{font-family:var(--mono); font-size:11.5px; white-space:pre-wrap; word-break:break-word; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r); padding:9px 11px; margin:8px 0 0}
+
+/* ---------- B25: Pipeline-Karten ---------------------------------- */
+.vcard .v-fuss{display:flex; align-items:center; gap:7px; min-width:0}
+.vcard .v-fuss .rest{flex:1; min-width:0; font-size:11.5px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.akt-punkt{width:18px; height:18px; border-radius:50%; flex:0 0 18px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:#fff; margin-left:auto}
+.akt-punkt.crit{background:var(--crit)}
+.akt-punkt.heute{background:var(--ok)}
+.akt-punkt.plan{background:var(--surface); border:2px solid var(--line-strong)}
+.akt-punkt.ohne{background:var(--warn-soft); color:var(--warn); border:1px solid var(--warn-line)}
+.col-head .t{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0}
+.col-head .ue{font-size:10.5px; color:#fff; background:var(--crit); font-weight:700; border-radius:10px; padding:0 6px; flex:0 0 auto}
+.dropleiste{position:fixed; left:0; right:0; bottom:0; z-index:90; display:flex; gap:12px; padding:12px 22px; background:rgba(20,32,42,.92)}
+.dropleiste div{flex:1; text-align:center; padding:18px; border-radius:8px; border:2px dashed; font-weight:700; font-size:15px}
+.dropleiste .won{color:#A3D2B9; border-color:#A3D2B9}
+.dropleiste .lost{color:#E2AFA8; border-color:#E2AFA8}
+.dropleiste .ueber{background:rgba(255,255,255,.12)}
+
 /* ---------- Mobil ---------- */
 @media (max-width:820px){
   body{font-size:15px}
@@ -415,6 +503,15 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:po
   .modal-center{padding:0}
   .modal,.modal.wide{width:100%; height:100dvh; max-height:100dvh; border-radius:0}
   .dlg2{grid-template-columns:1fr; gap:0}
+  .fx{width:100%; height:100dvh; border-radius:0}
+  .fx-body{flex-direction:column; overflow-y:auto}
+  .fx-side,.fx-main{width:auto; flex:0 0 auto; overflow:visible}
+  .fx-split{grid-template-columns:1fr}
+  .fx-stufen .nm{display:none}
+  .fx-top{flex-wrap:wrap}
+  .fx-titel{flex:1 1 100%}
+  .fx-aktionen{justify-content:flex-start}
+  .fx-head,.fx-body,.fx-foot{padding-left:14px; padding-right:14px}
   .kpi .v{font-size:22px}
   table.data{font-size:13px}
   table.data th,table.data td{padding:7px 8px}
@@ -607,6 +704,31 @@ const SB = {
   /* Alter Name, gleiche Sache */
   async einfuegen(tabelle, zeilen){ await this.upsert(tabelle, zeilen); },
 
+  /* B26: Nur die geaenderten Felder einer Zeile schreiben. So bleibt, was
+     ein anderes Geraet in derselben Zeile an ANDEREN Feldern geaendert hat,
+     erhalten. Kommt nichts zurueck, wurde die Zeile woanders geloescht –
+     dann wird sie mit dem lokalen Stand neu angelegt, denn hier wurde sie
+     ja gerade bewusst bearbeitet. */
+  /* B27: Aktuellen Cloud-Stand eines Feldes fuer mehrere Zeilen holen.
+     Ergebnis: Map id -> Wert. Fehlt eine id, gibt es die Zeile dort nicht. */
+  async feldLesen(tabelle, ids, feld){
+    const out = new Map();
+    for (let i = 0; i < ids.length; i += 100){
+      const teil = ids.slice(i, i+100);
+      const zeilen = await this.req("GET",
+        `/rest/v1/${tabelle}?select=id,${feld}&id=in.(${teil.map(id=>`"${id}"`).join(",")})`);
+      for (const z of (zeilen||[])) out.set(z.id, z[feld] || []);
+    }
+    return out;
+  },
+
+  async felderSetzen(tabelle, id, felder, ganz){
+    const r = await this.req("PATCH",
+      `/rest/v1/${tabelle}?id=eq.${encodeURIComponent(id)}&select=id`,
+      felder, {"Prefer":"return=representation"});
+    if(Array.isArray(r) && r.length === 0) await this.upsert(tabelle, [ganz]);
+  },
+
   /* Supabase: in-Filter als id=in.("a","b","c"). Paketweise, sonst wird
      die URL bei einer Sammellöschung von 500 Firmen zu lang. */
   async loeschen(tabelle, ids){
@@ -737,11 +859,16 @@ const Spiegel = {
     await new Promise(r => setTimeout(r, 0));   /* mehrere Saves bündeln */
     while(Object.keys(this._warte).length){
       const w = this._warte; this._warte = {};
+      /* B24: Zeitstempel mitschreiben. Faellt IndexedDB zeitweise aus und
+         der Stand landet in localStorage, kann sonst beim naechsten Login
+         die (dann veraltete) IndexedDB-Kopie den neueren Fallback
+         verdraengen. */
+      if("daten" in w) w.daten_zeit = Date.now();
       try{
         await this._put(w);
         this.modus = "idb"; this.fehler = ""; this.zuletzt = new Date();
         try{
-          if("daten" in w){ localStorage.removeItem("aqt.v1"); localStorage.setItem("aqt.spiegel", "idb"); }
+          if("daten" in w){ localStorage.removeItem("aqt.v1"); localStorage.removeItem("aqt.v1.zeit"); localStorage.setItem("aqt.spiegel", "idb"); }
           if("offen" in w) localStorage.removeItem("aqt.offen");
         }catch(_){}
         speicherWarnung("lokal", "");
@@ -749,7 +876,11 @@ const Spiegel = {
         console.warn("IndexedDB:", e);
         let ok = true;
         try{
-          if("daten" in w){ localStorage.setItem("aqt.v1", JSON.stringify(w.daten)); localStorage.removeItem("aqt.spiegel"); }
+          if("daten" in w){
+            localStorage.setItem("aqt.v1", JSON.stringify(w.daten));
+            localStorage.setItem("aqt.v1.zeit", String(w.daten_zeit || Date.now()));
+            localStorage.removeItem("aqt.spiegel");
+          }
           if("offen" in w) localStorage.setItem("aqt.offen", JSON.stringify(w.offen || {}));
         }catch(e2){ ok = false; }
         this.modus  = ok ? "localStorage" : "";
@@ -785,7 +916,9 @@ const Store = {
     for (const k of ["firmen","objekte","vorgaenge","aktivitaeten","anhaenge"]) if(!Array.isArray(this.data[k])) this.data[k]=[];
     if(!this.data.meta) this.data.meta={};
   },
+  saveZaehler: 0,
   save(){
+    this.saveZaehler++;
     const ok = this.backend.save(this.data) !== false;
     if(this.backend.id === "supabase"){
       /* Sicherheitsnetz: im Cloud-Modus zusaetzlich immer lokal spiegeln
@@ -810,6 +943,41 @@ const Store = {
    schickt nur die Unterschiede raus. Gebündelt – deshalb funktioniert
    auch ein Import mit 1.300 Zeilen und die Sammellöschung ohne Extra-Code.
 ------------------------------------------------------------------- */
+/* B26: bis zu so vielen geaenderten Zeilen pro Tabelle wird feldweise gespeichert */
+const SYNC_FELD_MAX = 40;
+
+/* B27: Felder, die eine ganze Liste enthalten. Wer hier speichert, ersetzt
+   sonst die komplette Liste – und ein Termin, den ein anderes Geraet in der
+   Zwischenzeit gesetzt oder abgehakt hat, waere weg. Deshalb wird vor dem
+   Speichern der Cloud-Stand geholt und Eintrag fuer Eintrag zusammengefuehrt. */
+const SYNC_LISTEN = { vorgaenge:"wiedervorlagen", firmen:"briefe" };
+
+/* Dreiwege-Zusammenfuehrung einer Liste. basis = Stand beim letzten
+   Abgleich, mein = Stand hier, dort = Stand in der Cloud.
+   - hier neu oder hier geaendert: gilt der Stand von hier
+   - hier unveraendert: gilt der Stand aus der Cloud (z.B. dort abgehakt)
+   - dort neu: kommt dazu
+   - hier geloescht: bleibt weg; dort geloescht und hier unveraendert: weg
+   Die Reihenfolge von hier bleibt, Neues von dort kommt hinten dran. */
+function listeZusammen(basis, mein, dort){
+  const sch = x => (x && x.id) ? "i:"+x.id : "k:"+((x&&x.datum)||"")+"|"+((x&&x.anlass)||"");
+  const js = JSON.stringify;
+  const B = new Map((basis||[]).map(x => [sch(x), x]));
+  const T = new Map((dort||[]).map(x => [sch(x), x]));
+  const out = [], gesehen = new Set();
+  for (const m of (mein||[])){
+    const k = sch(m); gesehen.add(k);
+    const b = B.get(k), t = T.get(k);
+    if(!b || js(m) !== js(b)){ out.push(m); continue; }
+    if(t) out.push(t);
+  }
+  for (const [k, t] of T){
+    if(gesehen.has(k) || B.has(k)) continue;
+    out.push(t);
+  }
+  return out;
+}
+
 const SYNC_TABELLEN = [
   { schluessel:"firmen",       tabelle:"aqt_firmen",       zuSb:r => appFirmaZuSb(r)   },
   { schluessel:"objekte",      tabelle:"aqt_objekte",      zuSb:r => appObjektZuSb(r)  },
@@ -820,7 +988,7 @@ const SYNC_TABELLEN = [
 
 /* B17: Dauerhafter roter Balken bei Speicherfehlern. Bleibt stehen, bis
    wieder erfolgreich gespeichert wurde – ein Toast ist nach 3 Sekunden weg. */
-const SpeicherWarn = { lokal:"", cloud:"" };
+const SpeicherWarn = { lokal:"", cloud:"", anh:"" };
 function speicherWarnung(art, text){
   SpeicherWarn[art] = text || "";
   speicherWarnungZeigen();
@@ -835,7 +1003,7 @@ window.addEventListener("resize", warnHoeheSetzen);
 function speicherWarnungZeigen(){
   if(!document.body) return;
   let el = document.getElementById("speicherWarn");
-  const txt = [SpeicherWarn.lokal, SpeicherWarn.cloud].filter(Boolean).join(" · ");
+  const txt = [SpeicherWarn.lokal, SpeicherWarn.cloud, SpeicherWarn.anh].filter(Boolean).join(" · ");
   if(!txt){ if(el) el.remove(); warnHoeheSetzen(); return; }
   if(!el){
     el = document.createElement("div");
@@ -847,8 +1015,12 @@ function speicherWarnungZeigen(){
   el.innerHTML = esc(txt)+(SpeicherWarn.cloud
     ? ' <button id="speicherWarnRetry" style="margin-left:10px;padding:2px 10px;border:1px solid #fff;background:transparent;color:#fff;border-radius:4px;cursor:pointer">Erneut versuchen</button>'
     : "");
+  if(SpeicherWarn.anh) el.innerHTML +=
+    ' <button id="anhRetry" style="margin-left:10px;padding:2px 10px;border:1px solid #fff;background:transparent;color:#fff;border-radius:4px;cursor:pointer">Anhänge neu laden</button>';
   const b = document.getElementById("speicherWarnRetry");
   if(b) b.onclick = () => Sync.anstossen();
+  const b2 = document.getElementById("anhRetry");
+  if(b2) b2.onclick = () => anhNeuLaden();
   warnHoeheSetzen();
 }
 
@@ -910,37 +1082,101 @@ const Sync = {
     if(this.laeuft){ this.nochmal = true; return; }
     this.laeuft = true; this.anzeigen();
     this.durchlauf()
-      .then(() => { this.fehler = null; speicherWarnung("cloud", ""); this.offenMerken(); })
+      .then(() => {
+        this.fehler = null; speicherWarnung("cloud", ""); this.offenMerken();
+        if(this.zusammengefuehrt){
+          if(this.meldung) this.meldung += " · Termine vom anderen Gerät ergänzt";
+          else toast("Termine vom anderen Gerät ergänzt", true);
+          Spiegel.planen("daten", Store.data);
+          if(!document.getElementById("overlay")) render();
+        }
+      })
       .catch(e => {
         this.fehler = e.message || String(e);
         console.error(e);
-        toast("Nicht gespeichert: "+this.fehler);
+        /* B26: die wartende Meldung ehrlich abschliessen */
+        const m = this.meldung; this.meldung = "";
+        toast((m ? m+" – " : "")+"nur lokal gespeichert, wird nachgeholt ("+this.fehler+")", true);
         speicherWarnung("cloud", "Nicht in der Cloud gespeichert: "+this.fehler+
           " – Änderungen sind lokal gesichert und werden nachgeholt.");
       })
       .then(() => {
         this.laeuft = false; this.anzeigen();
         if(this.nochmal){ this.nochmal = false; this.anstossen(); }
+        else if(!this.fehler && this.meldung){
+          const m = this.meldung; this.meldung = "";
+          toast(m+" · in der Cloud \u2713", true);
+        }
       });
   },
 
+  zusammengefuehrt: 0,
+
+  async listenAbgleichen(t, geaendert, neuMap){
+    const feld = SYNC_LISTEN[t.schluessel];
+    if(!feld) return 0;
+    const js = JSON.stringify;
+    const kand = geaendert.filter(g => js(g.neu[feld]||[]) !== js(g.alt[feld]||[]));
+    if(!kand.length) return 0;
+    const server = await SB.feldLesen(t.tabelle, kand.map(g => g.id), feld);
+    let n = 0;
+    for (const g of kand){
+      if(!server.has(g.id)) continue;            // dort geloescht – wie bisher
+      const mein = g.neu[feld] || [];
+      const zusammen = listeZusammen(g.alt[feld] || [], mein, server.get(g.id));
+      if(js(zusammen) === js(mein)) continue;
+      g.neu[feld] = zusammen;
+      neuMap.set(g.id, js(g.neu));
+      /* Lokal nur uebernehmen, wenn hier waehrenddessen nichts geaendert wurde */
+      const rec = (Store.data[t.schluessel]||[]).find(r => r.id === g.id);
+      if(rec && js(rec[feld]||[]) === js(mein)) rec[feld] = zusammen;
+      n++;
+    }
+    return n;
+  },
+
   async durchlauf(){
-    const jetzt = {}, rauf = [], runter = [];
+    this.zusammengefuehrt = 0;
+    const jetzt = {}, rauf = [], runter = [], felder = [];
     for (const t of SYNC_TABELLEN){
       const neu = this.momentaufnahme(t);
       const alt = this.stand[t.schluessel] || new Map();
       jetzt[t.schluessel] = neu;
-      const geaendert = [];
-      for (const [id, json] of neu) if(alt.get(id) !== json) geaendert.push(JSON.parse(json));
+      const anlegen = [], geaendert = [];
+      for (const [id, json] of neu){
+        const a = alt.get(id);
+        if(a === json) continue;
+        if(a === undefined) anlegen.push(JSON.parse(json));
+        else geaendert.push({ id, alt:JSON.parse(a), neu:JSON.parse(json) });
+      }
+      /* B27: Listenfelder vor dem Senden mit dem Cloud-Stand zusammenfuehren */
+      this.zusammengefuehrt += await this.listenAbgleichen(t, geaendert, neu);
+      /* B26: Einzelne Aenderungen gehen feldweise raus. Bei Massenaenderungen
+         (Import, Branchen-Abgleich, Sammelaktionen) waeren das tausende
+         Einzelanfragen – dort weiter ganze Zeilen in Paketen. */
+      if(geaendert.length > SYNC_FELD_MAX){
+        for (const g of geaendert) anlegen.push(g.neu);
+      } else {
+        for (const g of geaendert){
+          const diff = {};
+          for (const k of Object.keys(g.neu))
+            if(JSON.stringify(g.neu[k]) !== JSON.stringify(g.alt[k])) diff[k] = g.neu[k];
+          if(Object.keys(diff).length) felder.push({ t, id:g.id, diff, ganz:g.neu });
+        }
+      }
       const weg = [];
       for (const id of alt.keys()) if(!neu.has(id)) weg.push(id);
-      rauf.push({ t, zeilen:geaendert });
+      rauf.push({ t, zeilen:anlegen });
       runter.unshift({ t, ids:weg });          // umgekehrte Reihenfolge fürs Löschen
     }
     /* Löschen von unten nach oben: Aktivität, Vorgang, Objekt, Firma.
-       Anlegen umgekehrt, damit kein Fremdschlüssel ins Leere zeigt. */
+       Anlegen umgekehrt, damit kein Fremdschlüssel ins Leere zeigt.
+       Feldaenderungen zuletzt – dann gibt es eine neu angelegte Firma schon,
+       wenn ein Vorgang auf sie umgehaengt wird. */
     for (const x of runter) if(x.ids.length)   await SB.loeschen(x.t.tabelle, x.ids);
     for (const x of rauf)   if(x.zeilen.length) await SB.upsert(x.t.tabelle, x.zeilen);
+    for (let i = 0; i < felder.length; i += 6)
+      await Promise.all(felder.slice(i, i+6).map(p => SB.felderSetzen(p.t.tabelle, p.id, p.diff, p.ganz)));
     this.stand = jetzt;   // erst wenn alles durch ist – sonst geht bei Fehler was verloren
   },
 
@@ -979,22 +1215,34 @@ const QUELLEN  = ["Kaltakquise","Bestandskunde","Ehemaliger Kunde","Altangebot",
 const WEGE     = ["Aktiv","Passiv"];
 const HERKUNFT = ["Kaltakquise","Eingehende Anfrage","Empfehlung","Bestandskunde"];
 const AKT_TYPEN= ["Anruf","E-Mail","Brief","Besichtigung","Angebot","Notiz"];
-const ABSAGEGRUENDE = ["Preis","Referenzen fehlten","kein Termin","kein Interesse","Bestandsdienstleister blieb","anderes"];
+/* B28: Gruende fuer verlorene Angebote. „kein Interesse" bleibt fuer die
+   Kaltakquise (Erstkontakt), zaehlt aber nicht als verlorenes Angebot. */
+const ABSAGEGRUENDE = ["Preis","Mitbewerber","keine Rückmeldung","Leistung / Umfang passte nicht",
+  "Projekt verschoben / gestrichen","Referenzen fehlten","Bestandsdienstleister blieb","kein Interesse","anderes"];
 
+/* B28: Die Pipeline verfolgt nur noch Angebote. Kaltakquise-Kontakte
+   (Stufen „neu"/„kontaktiert" ohne Anfrage/Angebot) leben bei den Firmen.
+   Die Daten-IDs bleiben, damit nichts umgeschrieben werden muss:
+   „neu", „kontaktiert" und „besichtigung" stehen bei einem Angebot alle
+   in der ersten Spalte „Angebot zu erstellen". */
 const STUFEN = [
-  { id:"neu",              name:"Neu" },
-  { id:"kontaktiert",      name:"Kontaktiert" },
-  { id:"besichtigung",     name:"Besichtigung" },
+  { id:"neu",              name:"Angebot zu erstellen" },
   { id:"angebot_versendet",name:"Angebot abgegeben" },
-  { id:"nachfass",         name:"Nachfass fällig" },
+  { id:"nachfass",         name:"Nachfassen" },
   { id:"abschluss",        name:"Auftrag / Absage" }
+];
+/* Stufen eines Kaltakquise-Kontakts (nur Anzeige im Vorgangsfenster) */
+const AKQ_STUFEN = [
+  { id:"neu",         name:"Noch nicht gesprochen" },
+  { id:"kontaktiert", name:"Im Gespräch" }
 ];
 
 /* Namen einer Stufe, auch wenn in den Daten noch ein alter Wert steht
    (früher gab es "Angebot erstellt" als eigene Spalte). */
 function stufenName(id){
   const s = STUFEN.find(x => x.id === id);
-  return s ? s.name : (id === "angebot_erstellt" ? "Angebot abgegeben" : "Neu");
+  if(s) return s.name;
+  return ({ angebot_erstellt:"Angebot abgegeben", kontaktiert:"Im Gespräch", besichtigung:"Besichtigung" })[id] || "Angebot zu erstellen";
 }
 
 /* Kontaktweg beim Import. Telefonieren lohnt nur bei grossen Arbeitgebern -
@@ -1106,7 +1354,7 @@ function plusTage(n, ab){ const d = ab?new Date(ab):heute(); d.setDate(d.getDate
 function nachfassFrist(v){
   let t = Number((v||{}).nachfassTage);
   if(!t && typeof Vorlagen!=="undefined") t = Number(Vorlagen.aktuell().nachfassTage);
-  return Math.min(90, Math.max(1, t || 10));
+  return Math.min(90, Math.max(1, t || 14));
 }
 function plusMonate(n, ab){ const d = ab?new Date(ab):heute(); d.setMonth(d.getMonth()+n); return ISO(d); }
 function fmtDatum(iso){
@@ -1150,12 +1398,19 @@ function relativ(iso){
 /* B17: Hinweise der Termin-Automatik werden an die naechste Meldung
    angehaengt bzw. allein angezeigt, wenn keine folgt. */
 let AutoMeldung = "";
-function toast(text){
+function toast(text, roh){
   if(AutoMeldung){
     text = text ? text+" · "+AutoMeldung : AutoMeldung;
     AutoMeldung = "";
   }
   if(!text) return;
+  /* B26: Laeuft gerade die Uebertragung in die Cloud, heisst „Gespeichert“
+     erst einmal nur „auf diesem Geraet“. Die Bestaetigung (oder der Fehler)
+     kommt, sobald die Cloud geantwortet hat. */
+  if(!roh && typeof Sync !== "undefined" && Store.backend.id === "supabase" && Sync.laeuft){
+    Sync.meldung = text;
+    text = text+" · wird übertragen …";
+  }
   const host=$("#toastHost");
   if(!host) return;
   host.innerHTML = '<div class="toast">'+esc(text)+"</div>";
@@ -1240,22 +1495,109 @@ function appAnhangZuSb(a){ return {
   hochgeladen_von:a.hochgeladenVon||""
 };}
 
-/* Kompletten Datenstand aus Supabase laden */
-async function sbLaden(){
-  ladeToast("Daten werden geladen…");
+/* Kompletten Datenstand aus Supabase holen, ohne ihn schon einzusetzen */
+async function sbHolen(){
+  let anhFehler = "";
   const [F,O,V,A,N] = await Promise.all([
     SB.alle("aqt_firmen"), SB.alle("aqt_objekte"),
     SB.alle("aqt_vorgaenge"), SB.alle("aqt_aktivitaeten"),
-    /* Fehlt die Tabelle noch, läuft der Rest trotzdem weiter */
-    SB.alle("aqt_anhaenge").catch(e => { console.warn("aqt_anhaenge:", e.message||e); return []; })
+    /* B26: Klemmt nur die Anhang-Tabelle, laeuft der Rest weiter – aber
+       nicht mehr still: es erscheint ein Hinweis mit „neu laden“. */
+    SB.alle("aqt_anhaenge").catch(e => { anhFehler = e.message || String(e); console.warn("aqt_anhaenge:", anhFehler); return []; })
   ]);
-  Store.data.firmen       = F.map(sbFirmaZuApp);
-  Store.data.objekte      = O.map(sbObjektZuApp);
-  Store.data.vorgaenge    = V.map(sbVorgangZuApp);
-  Store.data.aktivitaeten = A.map(sbAktZuApp);
-  Store.data.anhaenge     = N.map(sbAnhangZuApp);
-  ladeToastWeg();
+  return {
+    firmen: F.map(sbFirmaZuApp), objekte: O.map(sbObjektZuApp),
+    vorgaenge: V.map(sbVorgangZuApp), aktivitaeten: A.map(sbAktZuApp),
+    anhaenge: N.map(sbAnhangZuApp), anhFehler
+  };
 }
+
+/* Kompletten Datenstand aus Supabase laden */
+async function sbLaden(){
+  ladeToast("Daten werden geladen…");
+  try{
+    const d = await sbHolen();
+    Store.data.firmen       = d.firmen;
+    Store.data.objekte      = d.objekte;
+    Store.data.vorgaenge    = d.vorgaenge;
+    Store.data.aktivitaeten = d.aktivitaeten;
+    Store.data.anhaenge     = d.anhaenge;
+    anhWarnung(d.anhFehler);
+    Nachladen.zuletzt = Date.now();
+  } finally { ladeToastWeg(); }
+}
+
+function anhWarnung(fehler){
+  speicherWarnung("anh", fehler
+    ? "Anhänge konnten nicht geladen werden ("+fehler+"). Die Dateien sind nicht weg – nur gerade nicht abrufbar."
+    : "");
+}
+
+/* Nur die Anhaenge nachladen. Was hier schon angehaengt, aber noch nicht
+   uebertragen ist, bleibt erhalten. */
+async function anhNeuLaden(){
+  if(!Auth.eingeloggt()) return;
+  try{
+    const N = (await SB.alle("aqt_anhaenge")).map(sbAnhangZuApp);
+    const da = new Set(N.map(a => a.id));
+    const lokal = (Store.data.anhaenge||[]).filter(a => !da.has(a.id));
+    Store.data.anhaenge = N.concat(lokal);
+    if(Sync.stand){
+      const t = SYNC_TABELLEN.find(x => x.schluessel === "anhaenge");
+      const m = new Map();
+      for (const a of N) m.set(a.id, JSON.stringify(t.zuSb(a)));
+      Sync.stand.anhaenge = m;
+    }
+    anhWarnung("");
+    render();
+    toast(N.length+" Anhänge geladen", true);
+    if(lokal.length) Sync.anstossen();
+  }catch(e){
+    anhWarnung(e.message || String(e));
+  }
+}
+
+/* ---------- B26: Nachladen nach einer Pause --------------------
+   Was ein anderes Geraet geaendert hat, kam bisher erst beim naechsten
+   Login an. Jetzt holt AQT den Stand nach, wenn man nach mindestens
+   10 Minuten ins Fenster zurueckkommt – aber nur, wenn hier gerade nichts
+   offen ist: kein Dialog, keine unuebertragene Aenderung. Wird waehrend
+   des Ladens etwas gespeichert, wird das Geladene verworfen.
+------------------------------------------------------------------- */
+const Nachladen = {
+  NACH: 10*60*1000, zuletzt: 0, laeuft: false,
+  bereit(){
+    return Auth.eingeloggt() && Store.backend.id === "supabase" && !this.laeuft &&
+      Date.now() - this.zuletzt >= this.NACH &&
+      !document.getElementById("overlay") && !Sync.laeuft && !Sync.fehler && Sync.offen() === 0;
+  },
+  async pruefen(){
+    if(!this.bereit()) return false;
+    this.laeuft = true;
+    const vorher = Store.saveZaehler;
+    try{
+      const d = await sbHolen();
+      if(Store.saveZaehler !== vorher || document.getElementById("overlay") || Sync.laeuft) return false;
+      Store.data.firmen       = d.firmen;
+      Store.data.objekte      = d.objekte;
+      Store.data.vorgaenge    = d.vorgaenge;
+      Store.data.aktivitaeten = d.aktivitaeten;
+      if(!d.anhFehler) Store.data.anhaenge = d.anhaenge;
+      anhWarnung(d.anhFehler);
+      Sync.grundstellung();
+      Spiegel.planen("daten", Store.data);
+      this.zuletzt = Date.now();
+      render();
+      toast("Stand aus der Cloud aktualisiert", true);
+      return true;
+    }catch(e){ console.warn("Nachladen:", e); return false; }
+    finally{ this.laeuft = false; }
+  }
+};
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible") Nachladen.pruefen();
+});
+window.addEventListener("focus", () => Nachladen.pruefen());
 
 /* Lokale Daten einmalig nach Supabase hochladen */
 async function sbMigrieren(lokal){
@@ -1310,7 +1652,7 @@ function neuerVorgang(p){
     kontaktweg:"Aktiv", herkunft:"Kaltakquise", ergebnis:"",
     absagegrund:"", vertragsendeWettbewerb:"", notiz:"", mailText:"",
     anfrageAm:"", frist:"", angebotAm:"", nachfassStufe:0,
-    nachfassTage: (typeof Vorlagen!=="undefined" && Number(Vorlagen.aktuell().nachfassTage)) || 10,
+    nachfassTage: (typeof Vorlagen!=="undefined" && Number(Vorlagen.aktuell().nachfassTage)) || 14,
     wiedervorlagen:[], angelegt:new Date().toISOString()
   }, p||{});
   Store.data.vorgaenge.push(v); return v;
@@ -2078,9 +2420,21 @@ function loginZeigen(fehler){
     try{
       /* Lokale Daten sichern, bevor wir Store überschreiben */
       let lokal = JSON.parse(JSON.stringify(Store.data));
-      /* B18: aktuelle Kopie liegt in IndexedDB; aqt.v1 nur noch Altbestand */
+      /* B18: aktuelle Kopie liegt in IndexedDB; aqt.v1 nur noch Altbestand.
+         B24: War IndexedDB zwischenzeitlich nicht erreichbar, kann der
+         localStorage-Fallback neuer sein als die IndexedDB-Kopie. Deshalb
+         beide Zeitstempel vergleichen statt IndexedDB blind zu bevorzugen. */
       const gespiegelt = await Spiegel.lesen("daten");
-      if(gespiegelt && Array.isArray(gespiegelt.firmen)) lokal = gespiegelt;
+      const zeitIdb = Number(await Spiegel.lesen("daten_zeit")) || 0;
+      let zeitLokal = 0;
+      try{ zeitLokal = Number(localStorage.getItem("aqt.v1.zeit")) || 0; }catch(_){}
+      let lsFallback = null;
+      try{ const r = localStorage.getItem("aqt.v1"); lsFallback = r ? JSON.parse(r) : null; }catch(_){ lsFallback = null; }
+      if(lsFallback && Array.isArray(lsFallback.firmen) && zeitLokal > zeitIdb){
+        lokal = lsFallback;
+      } else if(gespiegelt && Array.isArray(gespiegelt.firmen)){
+        lokal = gespiegelt;
+      }
       let offen = await Spiegel.lesen("offen");
       if(!offen){ try{ offen = JSON.parse(localStorage.getItem("aqt.offen") || "null"); }catch(_){ offen = null; } }
       await SB.login(mail, pw);
@@ -2114,15 +2468,11 @@ function loginZeigen(fehler){
           }
         }
       }
-      const einspielen = (schluessel) => {
-        const da = new Set((Store.data[schluessel]||[]).map(r=>r.id));
-        for(const r of (lokal[schluessel]||[])){
-          if(r.entwurf) continue;
-          if(!da.has(r.id)){ Store.data[schluessel].push(r); uebernommen++; }
-        }
-      };
-      einspielen("firmen"); einspielen("objekte");
-      einspielen("vorgaenge"); einspielen("aktivitaeten");
+      /* B24: Kein blindes einspielen() mehr. Was wirklich lokal offen war,
+         steht schon oben ueber die "offen" (g/w)-Liste drin – ein
+         zusaetzliches "fehlt in der Cloud, also wieder anlegen" traf auch
+         Eintraege, die auf einem anderen Rechner absichtlich geloescht
+         wurden, und liess sie wieder auftauchen. */
       if(uebernommen){
         Store.save();
         Sync.anstossen();
@@ -2148,7 +2498,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 21.09.2026 · B22</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 20.10.2026 · B29</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -2177,15 +2527,16 @@ function appStarten(){
   App.seite="pipeline";
   fristenNachtragen();     /* alte Vorgänge: Frist aus der Notiz übernehmen */
   abschlussAltlasten();    /* B17: alte Nachfass-Termine bei Abgeschlossenen abhaken */
+  nachfass14Angebote();    /* B28: offene Angebote von 10 auf 14 Tage */
   render();
   /* Vorlagen nachladen; bis dahin gilt der Browser-Stand bzw. der Standard */
-  Vorlagen.laden().then(() => { if(App.seite==="setup") render(); });
+  Vorlagen.laden().then(() => { nachfass14Vorlage(); if(App.seite==="setup") render(); });
 }
 
 /* ---------- 5. Navigation und Routing ------------------------- */
 const SEITEN = [
-  { id:"pipeline",  name:"Pipeline",         kurz:"Pipeline", ico:"▤" },
-  { id:"firmen",    name:"Firmen / Kontakte",kurz:"Firmen",   ico:"▦" },
+  { id:"pipeline",  name:"Pipeline · Angebote",      kurz:"Angebote", ico:"▤" },
+  { id:"firmen",    name:"Firmen · Kaltakquise",     kurz:"Akquise",  ico:"▦" },
   { id:"adressen",  name:"Adressen finden",  kurz:"Adressen", ico:"⌖" },
   { id:"zahlen",    name:"Auswertungen",     kurz:"Zahlen",   ico:"◫" },
   { id:"setup",     name:"Einstellungen",    kurz:"Setup",    ico:"⚙" }
@@ -2195,7 +2546,8 @@ const App = {
   seite:"pipeline",
   pipelineAnsicht:"board",   // board | faellig
   passiveZeigen:false,
-  firmenFilter:{ name:"", branche:"", gruppe:"", segment:"", kontaktweg:"", status:"", quelle:"", ort:"", plz:"", ablage:"" },
+  firmenFilter:{ name:"", branche:"", gruppe:"", segment:"", kontaktweg:"", status:"", quelle:"", ort:"", plz:"", ablage:"", zielgruppe:"" },
+  firmenAnsicht:"liste",   // liste | anruf (B28)
   firmenSort:{ feld:"name", richtung:1 },
   auswahl:new Set(),
   aktOffen:new Set()      /* aufgeklappte Chronik-Einträge */
@@ -2217,16 +2569,21 @@ function go(id){
 }
 
 function navRendern(){
-  const faellig = faelligeVorgaenge().filter(x=>tageBis(x.w.datum)<0).length;
+  /* B28: Ueberfaellige Angebote an der Pipeline, ueberfaellige
+     Kaltakquise-Kontakte an Firmen / Kontakte */
+  const ueber = faelligeVorgaenge().filter(x=>tageBis(x.w.datum)<0);
+  const badge = {
+    pipeline: ueber.filter(x=>istDeal(x.v)).length,
+    firmen:   ueber.filter(x=>!istDeal(x.v) && !x.v.ergebnis).length
+  };
+  const b1 = id => badge[id] ? '<span class="badge">'+badge[id]+"</span>" : "";
   $("#navList").innerHTML = SEITEN.map(s =>
     '<button class="nav-item'+(App.seite===s.id?" on":"")+'" data-go="'+s.id+'">'+
-      '<span class="ico">'+s.ico+'</span><span>'+esc(s.name)+'</span>'+
-      (s.id==="pipeline"&&faellig?'<span class="badge">'+faellig+"</span>":"")+
+      '<span class="ico">'+s.ico+'</span><span>'+esc(s.name)+'</span>'+b1(s.id)+
     "</button>").join("");
   $("#mobileNav").innerHTML = SEITEN.map(s =>
     '<button class="'+(App.seite===s.id?"on":"")+'" data-go="'+s.id+'">'+
-      '<span class="ico">'+s.ico+'</span><span>'+esc(s.kurz)+'</span>'+
-      (s.id==="pipeline"&&faellig?'<span class="badge">'+faellig+"</span>":"")+
+      '<span class="ico">'+s.ico+'</span><span>'+esc(s.kurz)+'</span>'+b1(s.id)+
     "</button>").join("");
   const b = Store.backend;
   $("#storeDot").style.background = b.color;
@@ -2269,34 +2626,43 @@ function renderPipeline(){
     '<button class="btn" data-act="mail-neu">Anfrage aus E-Mail</button>'+
     '<button class="btn primary" data-act="vorgang-neu">+ Vorgang</button>';
 
-  const alle = Store.data.vorgaenge;
-  const deals    = alle.filter(v => istDeal(v));
-  const akquise  = alle.filter(v => !istDeal(v) && !v.ergebnis);
-  const faellige = alle.filter(v => inFaelligListe(v));
+  /* B28: Die Pipeline zeigt nur Angebote. Kaltakquise steht unter
+     Firmen / Kontakte → Anrufliste. */
+  const deals    = Store.data.vorgaenge.filter(v => istDeal(v));
+  const offen    = deals.filter(v => !v.ergebnis);
+  const zu       = deals.filter(v => v.ergebnis);
+  const faellige = deals.filter(v => inFaelligListe(v));
+  const ohneTermin = offen.filter(v => !wvNaechste(v)).length;
 
-  /* Ansicht "board" aus altem Stand auf "deals" migrieren */
-  if(App.pipelineAnsicht === "board") App.pipelineAnsicht = "deals";
+  /* Alte Ansichten ("board", "akquise") auf das Board migrieren */
+  if(["board","akquise"].indexOf(App.pipelineAnsicht) >= 0) App.pipelineAnsicht = "deals";
 
+  const seg = (id, name, n) => '<button data-ansicht="'+id+'" class="'+(App.pipelineAnsicht===id?"on":"")+'">'+
+    name+' <span class="chip">'+n+"</span></button>";
   let h = '<div id="eingangBox"></div>'+
     '<div class="toolbar">'+
     '<div class="seg">'+
-      '<button data-ansicht="deals" class="'+(App.pipelineAnsicht==="deals"?"on":"")+'">Deals <span class="chip">'+deals.filter(v=>!v.ergebnis).length+'</span></button>'+
-      '<button data-ansicht="akquise" class="'+(App.pipelineAnsicht==="akquise"?"on":"")+'">Akquise <span class="chip">'+akquise.length+'</span></button>'+
-      '<button data-ansicht="faellig" class="'+(App.pipelineAnsicht==="faellig"?"on":"")+'">Fällige Liste <span class="chip">'+faellige.length+'</span></button>'+
+      seg("deals","Offene Angebote",offen.length)+
+      seg("faellig","Fällig",faellige.length)+seg("zu","Abgeschlossen",zu.length)+
     "</div>"+
+    (ohneTermin
+      ? '<span class="chip crit" title="Ohne nächsten Termin läuft ein Angebot ins Leere">'+ohneTermin+
+        (ohneTermin===1?" Angebot":" Angebote")+" ohne Termin</span>" : "")+
+    (App.pipelineAnsicht==="deals"
+      ? '<span class="tiny muted">Karte ziehen: in eine andere Stufe – oder nach unten auf Auftrag / Absage.</span>' : "")+
   "</div>";
 
-  if(!alle.length){
-    h += '<div class="empty"><h3>Noch kein Vorgang angelegt</h3>'+
-      "<p>Ein Vorgang ist eine laufende Sache: eine Anfrage, ein Angebot, ein Nachfassen. "+
-      "Er hängt immer an einer Firma.</p>"+
-      '<button class="btn primary" data-act="vorgang-neu">Ersten Vorgang anlegen</button> '+
+  if(!deals.length){
+    h += '<div class="empty"><h3>Noch kein Angebot in der Pipeline</h3>'+
+      "<p>Hier stehen Anfragen und Angebote, bis Auftrag oder Absage feststeht. "+
+      "Aus der Kaltakquise kommt ein Kontakt hierher, sobald er ein Angebot möchte.</p>"+
+      '<button class="btn primary" data-act="vorgang-neu">Angebot anlegen</button> '+
       '<button class="btn" data-act="mail-neu">Anfrage aus E-Mail übernehmen</button></div>';
     $("#content").innerHTML = h; return;
   }
 
-  if(App.pipelineAnsicht === "deals")        h += boardHTML(deals);
-  else if(App.pipelineAnsicht === "akquise") h += akquiseHTML(akquise);
+  if(App.pipelineAnsicht === "deals")        h += boardHTML(offen);
+  else if(App.pipelineAnsicht === "zu")      h += abgeschlossenHTML(zu);
   else                                       h += faelligHTML();
 
   $("#content").innerHTML = h;
@@ -2312,28 +2678,41 @@ function kartenSortiert(arr){
     const w = wvNaechste(v);
     return w ? 2 : 3;           /* ohne WV ganz unten */
   };
+  /* B28: bei Gleichstand nach Firmenname, sonst stand es zufaellig */
   return arr.slice().sort((a,b) => {
     const d = gew(a) - gew(b);
     if(d !== 0) return d;
     const wa = wvNaechste(a), wb = wvNaechste(b);
-    if(wa && wb) return wa.datum.localeCompare(wb.datum);
-    return 0;
+    if(wa && wb && wa.datum !== wb.datum) return wa.datum.localeCompare(wb.datum);
+    return SORT_NAME.compare(DB.firmaName(a.firmaId), DB.firmaName(b.firmaId));
   });
 }
+const SORT_NAME = new Intl.Collator("de", { numeric:true, sensitivity:"base" });
 
 const BOARD_LIMIT = 6;                  /* sichtbare Karten pro Spalte */
 if(!App.boardOffen) App.boardOffen = new Set();  /* aufgeklappte Spalten */
 
+/* B25: Auf dem Board stehen nur offene Deals – wie bei Pipedrive. Wer
+   abgeschlossen hat, steht unter „Abgeschlossen“. Zum Abschliessen eine
+   Karte nach unten auf Auftrag oder Absage ziehen. */
 function boardHTML(liste){
   let h = '<div class="board" id="board">';
-  for (const st of STUFEN){
-    const karten = kartenSortiert(liste.filter(v=>v.stufe===st.id));
+  const offeneStufen = STUFEN.filter(s => s.id !== "abschluss");
+  offeneStufen.forEach((st, nr) => {
+    const karten = kartenSortiert(liste.filter(v =>
+      v.stufe === st.id ||
+      (st.id === "neu" && (v.stufe === "kontaktiert" || v.stufe === "besichtigung")) ||
+      (st.id === "angebot_versendet" && v.stufe === "angebot_erstellt") ||
+      (st.id === "nachfass" && v.stufe === "abschluss")));
     const offen = App.boardOffen.has(st.id);
     const sichtbar = offen ? karten : karten.slice(0, BOARD_LIMIT);
     const rest = karten.length - sichtbar.length;
+    const ue = karten.filter(v => dringlichkeit(v) === "crit").length;
     h += '<section class="col" data-stufe="'+st.id+'">'+
-      '<div class="col-head"><span class="n mono">'+(STUFEN.indexOf(st)+1)+'</span>'+
-      '<span class="t">'+esc(st.name)+'</span><span class="c">'+karten.length+"</span></div>";
+      '<div class="col-head"><span class="n mono">'+(nr+1)+'</span>'+
+      '<span class="t">'+esc(st.name)+'</span>'+
+      (ue ? '<span class="ue" title="'+ue+' überfällig">'+ue+'</span>' : "")+
+      '<span class="c">'+karten.length+"</span></div>";
     h += sichtbar.length ? sichtbar.map(vcardHTML).join("")
        : '<div class="col-empty">leer</div>';
     if(rest > 0)
@@ -2343,8 +2722,30 @@ function boardHTML(liste){
       h += '<button class="btn ghost board-mehr" data-weniger="'+st.id+
         '" style="width:100%;margin-top:4px;font-size:12px">Weniger ▴</button>';
     h += "</section>";
-  }
+  });
   return h + "</div>";
+}
+
+/* Abgeschlossene Deals: Auftraege zuerst, dann Absagen */
+function abgeschlossenHTML(liste){
+  if(!liste.length) return '<div class="empty"><h3>Noch nichts abgeschlossen</h3>'+
+    "<p>Auftrag oder Absage oben im Vorgang buchen – oder die Karte auf dem Board nach unten ziehen.</p></div>";
+  const z = liste.slice().sort((a,b) =>
+    (a.ergebnis===b.ergebnis ? 0 : (a.ergebnis==="gewonnen" ? -1 : 1)) ||
+    DB.firmaName(a.firmaId).localeCompare(DB.firmaName(b.firmaId), "de"));
+  return '<div class="panel"><div class="tablewrap"><table class="data"><thead><tr>'+
+    "<th>Firma</th><th>Vorgang</th><th>Ergebnis</th><th>Grund</th><th>Nächster Termin</th></tr></thead><tbody>"+
+    z.map(v => {
+      const w = wvNaechste(v);
+      return '<tr data-vorgang="'+v.id+'" style="cursor:pointer">'+
+        '<td class="cellname">'+esc(DB.firmaName(v.firmaId))+"</td>"+
+        "<td>"+esc(v.titel||"Ohne Titel")+"</td>"+
+        "<td>"+(v.ergebnis==="gewonnen" ? '<span class="chip ok">Auftrag</span>' : '<span class="chip">Absage</span>')+"</td>"+
+        '<td class="tiny">'+esc(v.absagegrund||"")+"</td>"+
+        '<td class="tiny">'+(w ? esc(fmtDatum(w.datum))+" · "+esc(w.anlass||"") : '<span class="muted">—</span>')+"</td>"+
+      "</tr>";
+    }).join("")+
+    "</tbody></table></div></div>";
 }
 
 /* ---------- Akquise-Ansicht: Anrufliste + Statistik ----------- */
@@ -2363,8 +2764,8 @@ function akquiseHTML(liste){
     const ga = a.dr==="crit"?0:a.dr==="warn"?1:a.w?2:3;
     const gb = b.dr==="crit"?0:b.dr==="warn"?1:b.w?2:3;
     if(ga!==gb) return ga-gb;
-    if(a.w && b.w) return a.w.datum.localeCompare(b.w.datum);
-    return (a.f.name||"").localeCompare(b.f.name||"");
+    if(a.w && b.w && a.w.datum !== b.w.datum) return a.w.datum.localeCompare(b.w.datum);
+    return SORT_NAME.compare(a.f.name||"", b.f.name||"");
   });
 
   const mitWV = enriched.filter(x=>x.w).length;
@@ -2373,15 +2774,15 @@ function akquiseHTML(liste){
   const passiv = enriched.filter(x=>x.v.kontaktweg!=="Aktiv").length;
 
   let h = '<div style="display:flex;gap:20px;margin:12px 0 16px;flex-wrap:wrap">'+
-    '<div class="tiny"><strong>'+enriched.length+'</strong> Kaltakquise-Vorgänge</div>'+
+    '<div class="tiny"><strong>'+enriched.length+'</strong> offene Akquise-Kontakte</div>'+
     '<div class="tiny">Telefon (Aktiv): <strong>'+aktiv+'</strong></div>'+
     '<div class="tiny">Brief (Passiv): <strong>'+passiv+'</strong></div>'+
     (ueberfaellig ? '<div class="tiny" style="color:var(--crit)"><strong>'+ueberfaellig+'</strong> überfällig</div>' : '')+
   '</div>';
 
   if(!enriched.length){
-    return h + '<div class="empty"><h3>Keine Kaltakquise-Vorgänge</h3>'+
-      '<p>Hier erscheinen Vorgänge mit Herkunft „Kaltakquise" in der Stufe „Neu".</p></div>';
+    return h + '<div class="empty"><h3>Keine offenen Akquise-Kontakte</h3>'+
+      "<p>Einen Kontakt legst du in der Firma über „+ Akquise-Kontakt“ an. Will er ein Angebot, wandert er in die Pipeline.</p></div>";
   }
 
   h += '<div class="tbl-wrap"><table class="tbl"><thead><tr>'+
@@ -2402,6 +2803,10 @@ function akquiseHTML(liste){
     h += '<tr'+cls+' data-vorgang="'+x.v.id+'" style="cursor:pointer">'+
       '<td>'+(x.dr==="crit"?'<span style="color:var(--crit)">●</span>':x.dr==="warn"?'<span style="color:var(--warn)">●</span>':'<span style="color:var(--ink-3)">○</span>')+'</td>'+
       '<td><strong>'+esc(x.f.name||"—")+'</strong>'+
+        (function(){ const zg = x.f.id ? zielgruppe(x.f) : "";
+          return zg==="Kunde" ? ' <span class="chip crit">Kunde – keine Kaltakquise</span>'
+               : zg==="Ehemaliger Kunde" ? ' <span class="chip warn">Ehemaliger Kunde</span>'
+               : zg==="Interessent (Angebot erhalten)" ? ' <span class="chip">Altangebot</span>' : ""; })()+
         (x.f.ort ? '<div class="tiny muted">'+esc(x.f.ort)+'</div>' : '')+'</td>'+
       '<td><span class="chip'+(x.v.kontaktweg==="Aktiv"?" accent":"")+'">'+esc(x.v.kontaktweg||"—")+'</span></td>'+
       '<td>'+(ap ? esc(ap) : '<span class="muted tiny">kein AP</span>')+
@@ -2415,43 +2820,51 @@ function akquiseHTML(liste){
   return h;
 }
 
-function vcardHTML(v){
+/* B25: Karte wie bei Pipedrive. Oben Firma, darunter der Betreff in einer
+   Zeile, unten genau ein Hinweis (der dringendste) und rechts der Punkt
+   fuer die naechste Aktivitaet: rot = ueberfaellig, gruen = heute,
+   Kreis = geplant, gelbes ! = nichts geplant. */
+function aktPunkt(v){
   const w = wvNaechste(v);
-  const dr = dringlichkeit(v);
-  const passiv = v.kontaktweg==="Passiv";
-  const obj = v.objektId ? DB.objekt(v.objektId) : null;
-  let meta = "";
-  if(v.ergebnis==="gewonnen") meta += '<span class="chip ok">Auftrag</span>';
-  if(v.ergebnis==="verloren") meta += '<span class="chip">Absage</span>';
-  if(passiv) meta += '<span class="chip">Passiv</span>';
+  if(!w) return '<span class="akt-punkt ohne" title="Kein Termin geplant">!</span>';
+  const t = tageBis(w.datum);
+  const tip = esc((w.anlass||"Wiedervorlage")+" · "+fmtDatum(w.datum)+" · "+relativ(w.datum));
+  if(t !== null && t < 0) return '<span class="akt-punkt crit" title="'+tip+'">!</span>';
+  if(t === 0) return '<span class="akt-punkt heute" title="'+tip+'"></span>';
+  return '<span class="akt-punkt plan" title="'+tip+'"></span>';
+}
+function kartenChip(v){
+  if(v.ergebnis==="gewonnen") return '<span class="chip ok">Auftrag</span>';
+  if(v.ergebnis==="verloren") return '<span class="chip">Absage</span>';
   const fi = fristInfo(v);
-  if(fi && !v.ergebnis && !v.angebotAm)
-    meta += '<span class="chip '+fi.cls+' gross">'+esc(fi.kurz)+"</span>";
-  if(w && inFaelligListe(v)){
-    const cls = dr==="crit"?"crit":dr==="warn"?"warn":"";
-    meta += '<span class="chip '+cls+'">'+esc(relativ(w.datum))+"</span>";
+  if(fi && !v.angebotAm) return '<span class="chip '+fi.cls+'">'+esc(fi.kurz)+"</span>";
+  const w = wvNaechste(v);
+  if(w){
+    const t = tageBis(w.datum);
+    if(t !== null && t <= 3)
+      return '<span class="chip '+(t<0?"crit":t<=0?"ok":"warn")+'">'+esc(relativ(w.datum))+"</span>";
   }
-  const nAnh = DB.anhaengeVon(v.id).length;
-  if(nAnh) meta += '<span class="chip accent">'+nAnh+" Datei"+(nAnh>1?"en":"")+"</span>";
-  /* Bei Mail-Importen ist der Objektname oft der Betreff – dann würde
-     dieselbe Zeile ein zweites Mal unter der Karte stehen. */
-  const on = obj ? String(obj.name||"").trim() : "";
-  const tt = String(v.titel||"").trim();
-  if(on && on.toLowerCase() !== tt.toLowerCase())
-    meta += '<span class="v-objekt">'+esc(on)+"</span>";
-  return '<button class="vcard'+(dr?" u-"+dr:"")+(passiv?" passiv":"")+'" draggable="true" data-vorgang="'+v.id+'"'+
-    ' title="'+esc(DB.firmaName(v.firmaId)+" \u00b7 "+(v.titel||"Ohne Titel"))+'">'+
+  if(v.stufe === "besichtigung") return '<span class="chip">Besichtigung</span>';
+  return "";
+}
+function vcardHTML(v){
+  const passiv = v.kontaktweg==="Passiv";
+  const f = DB.firma(v.firmaId) || {};
+  const rest = personKurz(f.ansprechpartner) || f.ort || "";
+  return '<button class="vcard'+(passiv?" passiv":"")+'" draggable="true" data-vorgang="'+v.id+'"'+
+    ' title="'+esc(DB.firmaName(v.firmaId)+" · "+(v.titel||"Ohne Titel"))+'">'+
     '<span class="v-firma">'+esc(DB.firmaName(v.firmaId))+"</span>"+
     '<span class="v-titel">'+esc(v.titel||"Ohne Titel")+"</span>"+
-    '<span class="v-meta">'+meta+"</span>"+
+    '<span class="v-fuss">'+kartenChip(v)+'<span class="rest">'+esc(rest)+"</span>"+aktPunkt(v)+"</span>"+
   "</button>";
 }
 
 function faelligHTML(){
   const liste = Store.data.vorgaenge
-    .filter(v=>inFaelligListe(v))
+    .filter(v=>istDeal(v) && inFaelligListe(v))
     .filter(v=> App.passiveZeigen || v.kontaktweg!=="Passiv")
-    .sort((a,b)=> wvNaechste(a).datum.localeCompare(wvNaechste(b).datum));
+    .sort((a,b)=> wvNaechste(a).datum.localeCompare(wvNaechste(b).datum) ||
+      SORT_NAME.compare(DB.firmaName(a.firmaId), DB.firmaName(b.firmaId)));
   if(!liste.length) return '<div class="empty"><h3>Nichts fällig</h3><p>Sobald ein Vorgang eine Wiedervorlage hat, steht er hier – die überfälligen zuerst.</p></div>';
 
   const heuteUeber = liste.filter(v=>tageBis(wvNaechste(v).datum)<=0);
@@ -2481,94 +2894,270 @@ function faelligHTML(){
   return h;
 }
 
-/* ---------- 7. Vorgang öffnen --------------------------------- */
+/* ---------- 7. Vorgang öffnen (B25) ---------------------------
+   Aufbau wie Pipedrive: links Ansprechpartner, Firma, Objekt und Details,
+   rechts „Jetzt dran“, Eingabe, Geplant, Verlauf. Die Feld-IDs (#vFrist,
+   #vNotiz usw.) sind dieselben wie vorher – vorgangFelderLesen() und alle
+   Knoepfe in aktion() arbeiten unveraendert weiter.
+------------------------------------------------------------------- */
+const ICO = {
+  tel:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>',
+  mail:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>',
+  web:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg>'
+};
+
+function telZeile(t){
+  t = String(t||"").trim();
+  return t ? '<a class="fx-tel" href="tel:'+esc(telUrl(t))+'">'+ICO.tel+esc(t)+"</a>"
+           : '<div class="fx-fehlt">'+ICO.tel+"Keine Telefonnummer</div>";
+}
+function mailZeile(m){
+  m = String(m||"").trim();
+  return m ? '<a class="fx-link" href="mailto:'+esc(m)+'">'+ICO.mail+esc(m)+"</a>"
+           : '<div class="fx-fehlt">'+ICO.mail+"Keine E-Mail-Adresse</div>";
+}
+function adresseHTML(x){
+  const z2 = [x.plz, x.ort].filter(Boolean).join(" ");
+  if(!x.strasse && !z2) return '<div class="fx-adr">keine Adresse</div>';
+  return '<div class="fx-adr">'+esc(x.strasse||"")+(x.strasse&&z2?"<br>":"")+esc(z2)+"</div>";
+}
+function miniLinks(x){
+  const t = [];
+  if(x.website) t.push('<a href="'+esc(webUrl(x.website))+'" target="_blank" rel="noopener">↗ Web</a>');
+  const k = kartenUrl(x);
+  if(k) t.push('<a href="'+esc(k)+'" target="_blank" rel="noopener">⌖ Karte</a>');
+  return t.length ? '<div class="fx-mini">'+t.join("")+"</div>" : "";
+}
+
+/* Welcher Reiter im Eingabefeld offen ist. Umschalten ohne Neuaufbau,
+   damit getippter Text stehen bleibt. */
+function vTabSetzen(tab){
+  App.vTab = tab;
+  document.querySelectorAll("[data-pane]").forEach(el =>
+    el.classList.toggle("hidden", el.getAttribute("data-pane").split(" ").indexOf(tab) < 0));
+  document.querySelectorAll(".fx-tabs [data-tab]").forEach(b =>
+    b.classList.toggle("on", b.getAttribute("data-tab") === tab));
+  const t = $("#aText");
+  if(t) t.placeholder = tab === "anruf" ? "Was kam raus? (optional)" : "Was ist passiert? …";
+}
+
+function vAbschlussKnoepfe(v){
+  /* B28: Kaltakquise-Kontakt – entweder will er ein Angebot (dann geht er
+     in die Pipeline) oder er hat kein Interesse */
+  if(!istDeal(v) && !v.ergebnis)
+    return '<button class="btn won" data-act="akq-angebot">Will ein Angebot</button>'+
+           '<button class="btn lost" data-act="leit-kein">Kein Interesse</button>';
+  if(v.ergebnis)
+    return '<span class="chip gross '+(v.ergebnis==="gewonnen"?"ok":"")+'">'+
+      (v.ergebnis==="gewonnen" ? "Auftrag erhalten" : "Absage"+(v.absagegrund?" · "+esc(v.absagegrund):""))+"</span>"+
+      '<button class="btn" data-act="abschluss-zuruck">Wieder öffnen</button>';
+  return '<button class="btn won" data-act="gewonnen">Auftrag</button>'+
+         '<button class="btn lost" data-act="verloren">Absage</button>';
+}
+
+function vStufenleiste(v){
+  if(!istDeal(v)){
+    /* B28: Kaltakquise – zwei Schritte, dann der Uebergang in die Pipeline */
+    const k = v.stufe === "kontaktiert" ? 1 : 0;
+    return '<div class="fx-stufen">'+AKQ_STUFEN.map((s,n) =>
+      '<button type="button" class="'+(n<=k?"an":"")+(n===k?" jetzt-st":"")+'"'+
+        (v.ergebnis ? "" : ' data-act="stufe-setzen" data-stufe="'+s.id+'"')+
+        '><div class="bar"></div><div class="nm">'+esc(s.name)+"</div></button>").join("")+
+      '<button type="button"'+(v.ergebnis ? "" : ' data-act="akq-angebot" title="Kontakt möchte ein Angebot – in die Pipeline übernehmen"')+
+        '><div class="bar"></div><div class="nm">Angebot gewünscht → Pipeline</div></button>'+
+    "</div>";
+  }
+  const i = stufenIndex(v), letzte = STUFEN.length - 1;
+  return '<div class="fx-stufen">'+STUFEN.map((s,k) => {
+    let c = "";
+    if(k <= i) c = (v.ergebnis === "gewonnen" && k === letzte) ? "an ende" : "an";
+    if(k === i) c += " jetzt-st";
+    const abschluss = s.id === "abschluss";
+    return '<button type="button" class="'+c+'"'+
+      (abschluss ? ' title="Abschluss über Auftrag / Absage oben rechts"'
+                 : ' data-act="stufe-setzen" data-stufe="'+s.id+'" title="Stufe setzen: '+esc(s.name)+'"')+
+      '><div class="bar"></div><div class="nm">'+esc(s.name)+"</div></button>";
+  }).join("")+"</div>";
+}
+
+function vKontaktKarte(f){
+  if(!f) return '<section class="fx-card"><div class="fx-lbl">Ansprechpartner</div>'+
+    '<div class="fx-fehlt">Noch keine Firma zugeordnet</div></section>';
+  const roh   = String(f.ansprechpartner||"").trim();
+  const name  = personKurz(roh);
+  const teile = roh.split(",").map(s=>s.trim()).filter(Boolean);
+  const funk  = (name && teile.length > 1) ? teile.slice(1).join(", ") : "";
+  return '<section class="fx-card"><div class="fx-lbl">Ansprechpartner</div>'+
+    (name ? '<div class="fx-name">'+esc(name)+"</div>"+(funk ? '<div class="fx-funk">'+esc(funk)+"</div>" : "")
+          : '<div class="fx-fehlt">Kein Ansprechpartner <button class="linkbtn" data-act="zur-firma">eintragen</button></div>'+
+            (roh ? '<div class="tiny muted">Im Feld steht: '+esc(roh)+"</div>" : ""))+
+    telZeile(f.telefon)+mailZeile(f.email)+
+  "</section>";
+}
+
+function vFirmaKarte(f){
+  if(!f) return "";
+  return '<section class="fx-card"><div class="fx-card-kopf"><div class="fx-lbl">Firma</div>'+
+      '<button class="linkbtn" data-act="zur-firma">Firma öffnen</button></div>'+
+    '<div style="font-size:14.5px;font-weight:650;overflow-wrap:anywhere">'+esc(f.name||"")+"</div>"+
+    adresseHTML(f)+miniLinks(f)+
+  "</section>";
+}
+
+function vObjektKarte(o){
+  return '<section class="fx-card"><div class="fx-lbl">Objekt</div>'+
+    '<div style="font-size:14.5px;font-weight:650;margin-top:6px;overflow-wrap:anywhere">'+esc(o.name||"Objekt ohne Namen")+"</div>"+
+    adresseHTML(o)+miniLinks({ name:o.name, strasse:o.strasse, plz:o.plz, ort:o.ort })+
+  "</section>";
+}
+
+/* Titel, Firma und Objekt aendert man selten – eingeklappt. Bei einem
+   neuen Vorgang ist der Kasten offen und steht ganz oben. */
+function vZuordnung(v, firmen, objekte, offen){
+  return '<details class="fx-card stamm" style="margin:0;padding-top:13px"'+(offen?" open":"")+">"+
+    '<summary><span class="pfeil">▸</span><span class="zeile fx-lbl">Titel, Firma, Objekt</span><span class="tu">ändern</span></summary>'+
+    '<div class="inhalt" style="display:flex;flex-direction:column;gap:10px">'+
+      '<div class="field"><label for="vTitel">Titel</label><input type="text" id="vTitel" value="'+esc(v.titel)+'" placeholder="z.B. Unterhaltsreinigung MVZ Nordend"></div>'+
+      '<div class="field"><label for="vFirma">Firma</label><select id="vFirma">'+optionen(firmen.map(x=>({id:x.id,name:x.name})), v.firmaId, "— keine —")+"</select></div>"+
+      '<div class="field"><label for="vObjekt">Objekt</label><select id="vObjekt">'+optionen(objekte.map(o=>({id:o.id,name:o.name||o.strasse||"Objekt ohne Namen"})), v.objektId, "— kein Objekt —")+"</select></div>"+
+    "</div></details>";
+}
+
+function vDetailsKarte(v){
+  const fi = fristInfo(v);
+  const fristRot = fi && !v.angebotAm && !v.ergebnis && (fi.cls === "crit");
+  const z = (lbl, id, feld) => '<div class="fx-zeile"><label for="'+id+'">'+lbl+"</label>"+feld+"</div>";
+  /* B28: Angebotsfelder nur bei Angeboten. Fehlen die Felder, laesst
+     vorgangFelderLesen() die Werte unveraendert. */
+  const deal = istDeal(v);
+  return '<section class="fx-card"><div class="fx-lbl" style="margin-bottom:4px">Details</div>'+
+    (deal ?
+    z("Anfrage eingegangen","vAnfrageAm",'<input type="date" id="vAnfrageAm" value="'+esc(v.anfrageAm||"")+'">')+
+    z("Angebotsfrist","vFrist",'<input type="date" id="vFrist"'+(fristRot?' class="crit"':"")+' value="'+esc(v.frist||"")+'">')+
+    z("Angebot abgegeben","vAngebotAm",'<input type="date" id="vAngebotAm" value="'+esc(v.angebotAm||"")+'">') : "")+
+    z("Herkunft","vHerkunft",'<select id="vHerkunft">'+optionen(HERKUNFT, v.herkunft)+"</select>")+
+    z("Kontaktweg","vWeg",'<select id="vWeg">'+optionen(WEGE, v.kontaktweg)+"</select>")+
+    z("Vertragsende Wettb.","vVertragsende",'<input type="date" id="vVertragsende" value="'+esc(v.vertragsendeWettbewerb||"")+'">')+
+    '<div style="text-align:right"><button class="linkbtn" data-act="wv-vertragsende" title="4 Monate vorher, bei Kliniken und großen MVZ 9 Monate">Wiedervorlage vor Vertragsende</button></div>'+
+    '<div class="field" style="margin-top:10px"><label for="vNotiz">Beschreibung</label>'+
+      '<textarea id="vNotiz" style="min-height:64px" placeholder="Worum geht es?">'+esc(v.notiz)+"</textarea></div>"+
+  "</section>";
+}
+
+function vEingabe(v, tab){
+  const T = [["notiz","Notiz"],["anruf","Anruf"],["wv","Wiedervorlage"],["datei","Datei"]];
+  const zeig = p => p.split(" ").indexOf(tab) < 0 ? " hidden" : "";
+  return '<section class="fx-card" style="padding:0" id="anhZone">'+
+    '<div class="fx-tabs">'+T.map(t =>
+      '<button type="button" class="'+(t[0]===tab?"on":"")+'" data-act="vtab" data-tab="'+t[0]+'">'+t[1]+"</button>").join("")+"</div>"+
+    '<input type="file" id="anhInput" multiple class="hidden">'+
+    '<input type="hidden" id="aTyp" value="Notiz"><input type="hidden" id="aDatum" value="'+ISO(new Date())+'">'+
+    '<div class="fx-pane'+zeig("notiz anruf")+'" data-pane="notiz anruf">'+
+      '<label for="aText" class="hidden">Text</label>'+
+      '<textarea id="aText" placeholder="'+(tab==="anruf"?"Was kam raus? (optional)":"Was ist passiert? …")+'"></textarea>'+
+      '<div class="fx-tasten'+zeig("notiz")+'" data-pane="notiz" style="justify-content:flex-end">'+
+        '<button class="btn" data-act="akt-speichern">Eintragen</button></div>'+
+      '<div class="fx-tasten'+zeig("anruf")+'" data-pane="anruf">'+
+        '<button class="btn" data-act="leit-erreicht">Erreicht</button>'+
+        '<button class="btn" data-act="leit-nicht">Nicht erreicht</button>'+
+        '<button class="btn" data-act="leit-termin">Termin vereinbart</button>'+
+        '<button class="btn" data-act="leit-kein">Kein Interesse</button>'+
+        '<button class="linkbtn" data-act="leitfaden" style="margin-left:auto">Mit Leitfaden anrufen</button>'+
+      "</div>"+
+    "</div>"+
+    '<div class="fx-pane'+zeig("wv")+'" data-pane="wv">'+
+      '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+
+        '<div class="field"><label for="wvDatum">Datum</label><input type="date" id="wvDatum" value="'+plusTage(7)+'"></div>'+
+        '<div class="field" style="flex:1;min-width:200px"><label for="wvAnlass">Anlass</label><input type="text" id="wvAnlass" placeholder="z.B. Nachfassen"></div>'+
+        '<button class="btn" data-act="wv-eigen">Termin setzen</button>'+
+      "</div></div>"+
+    '<div class="fx-pane'+zeig("datei")+'" data-pane="datei">'+
+      (v.entwurf
+        ? '<div class="dropzeile" style="margin:0">Vorgang erst speichern, danach können Dateien angehängt werden.</div>'
+        : '<div class="dropzeile" style="margin:0">Dateien hierher ziehen oder '+
+            '<button class="btn sm" data-act="anh-waehlen" style="margin-left:6px">Datei wählen</button>'+
+            '<div style="margin-top:5px">höchstens 25 MB pro Datei</div></div>')+
+    "</div>"+
+  "</section>";
+}
+
+function vGeplant(v){
+  const alle = (v.wiedervorlagen||[]).slice().sort((a,b)=>(a.datum||"").localeCompare(b.datum||""));
+  const offen = alle.filter(x => !x.erledigt), erledigt = alle.filter(x => x.erledigt);
+  const zeile = x => {
+    const t = tageBis(x.datum);
+    const cls = x.erledigt ? "" : (t!==null && t<0) ? "crit" : (t!==null && t<=3) ? "warn" : "";
+    return '<div class="fx-plan'+(x.erledigt?" zu":"")+'">'+
+      '<span class="dt">'+esc(fmtDatum(x.datum))+"</span>"+
+      '<span class="an">'+esc(x.anlass||"Wiedervorlage")+"</span>"+
+      (x.erledigt ? "" : '<span class="wann '+cls+'">'+esc(relativ(x.datum))+"</span>")+
+      (x.erledigt ? '<span class="tiny muted">erledigt</span>'
+                  : '<button class="btn sm" data-wv-done="'+x.id+'">Erledigt</button>')+
+      '<button class="btn sm ghost" data-wv-del="'+x.id+'" aria-label="Termin entfernen">✕</button>'+
+    "</div>";
+  };
+  let leer = "";
+  if(!offen.length){
+    const fi = fristInfo(v);
+    leer = '<div class="fx-fehlt" style="margin-top:4px">Nichts geplant – ohne nächsten Termin geht der Vorgang unter.'+
+      (fi && !v.angebotAm && !v.ergebnis ? ' <button class="linkbtn" data-act="wv-frist">Wiedervorlage vor der Frist</button>' : "")+
+      "</div>";
+  }
+  return '<section class="fx-card"><div class="fx-card-kopf"><div class="fx-lbl">Geplant'+
+      (offen.length ? ' <span class="chip">'+offen.length+"</span>" : "")+"</div>"+
+      '<button class="linkbtn" data-act="vtab" data-tab="wv">+ Termin</button></div>'+
+    offen.map(zeile).join("")+leer+
+    (erledigt.length ? '<details class="fx-imp"><summary>'+erledigt.length+" erledigt</summary>"+erledigt.map(zeile).join("")+"</details>" : "")+
+  "</section>";
+}
+
 function vorgangOeffnen(id){
   const v = DB.vorgang(id); if(!v) return;
-  const firmen = Store.data.firmen.slice().sort((a,b)=>a.name.localeCompare(b.name,"de"));
+  if(App.vTabFuer !== id){ App.vTab = "notiz"; App.vTabFuer = id; }
+  const tab = App.vTab || "notiz";
+  const firmen = Store.data.firmen.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"","de"));
   const objekte = DB.objekteVon(v.firmaId);
   const akt = DB.aktivitaetenVon(v.id);
   const anh = DB.anhaengeVon(v.id);
   const f   = DB.firma(v.firmaId);
-  const fi  = fristInfo(v);
-  const nf  = nachfassFaellig(v);
-
-  const wvListe = (v.wiedervorlagen||[]).slice().sort((a,b)=>(a.datum||"").localeCompare(b.datum||""));
+  const o   = v.objektId ? DB.objekt(v.objektId) : null;
+  const neu = v.entwurf || !v.firmaId || !(v.titel||"").trim();
 
   layerZeigen(
-    '<div class="modal wide">'+
-      '<div class="drawer-head" style="align-items:flex-start">'+
-        '<div class="vkopf">'+
-          '<div class="firma">'+esc(DB.firmaName(v.firmaId))+"</div>"+
-          '<div class="betreff">'+esc(v.titel||"Ohne Titel")+"</div>"+
-          vorgangKontaktzeile(v, f)+
-          vorgangKopf(v, anh)+
+    '<div class="fx" role="dialog" aria-label="Vorgang">'+
+      '<div class="fx-head">'+
+        '<div class="fx-top">'+
+          '<div class="fx-titel">'+
+            '<div class="eyebrow">'+(istDeal(v) ? "Angebot" : "Kaltakquise-Kontakt")+(v.herkunft?" · "+esc(v.herkunft):"")+"</div>"+
+            "<h2>"+esc(DB.firmaName(v.firmaId))+"</h2>"+
+            '<div class="unter">'+esc(v.titel||"Ohne Titel")+"</div>"+
+          "</div>"+
+          '<div class="fx-aktionen">'+
+            vAbschlussKnoepfe(v)+
+            '<button class="btn ghost" data-act="vmenu" aria-label="Weitere Aktionen" style="font-size:17px;padding:3px 11px">⋯</button>'+
+            '<button class="btn ghost" data-close="1">Schliessen</button>'+
+            '<div class="fx-menu hidden" id="vMenu">'+
+              '<button class="btn" data-act="mail-ansehen">'+(v.mailText ? "Eingegangene E-Mail" : "E-Mail hinterlegen")+"</button>"+
+              '<button class="btn" data-act="leitfaden">Gesprächsleitfaden</button>'+
+              '<button class="btn rot" data-act="vorgang-loeschen">Vorgang löschen</button>'+
+            "</div>"+
+          "</div>"+
         "</div>"+
-        '<button class="btn ghost" data-close="1">Schliessen</button>'+
+        vStufenleiste(v)+
       "</div>"+
-      '<div class="drawer-body"><div class="dlg2">'+
-
-        "<div>"+
-        jetztKasten(v)+
-        '<div class="section"><div class="section-t">Termine</div>'+
-          '<div class="grid3">'+
-            '<div class="field"><label>Anfrage eingegangen</label><input type="date" id="vAnfrageAm" value="'+esc(v.anfrageAm||"")+'"></div>'+
-            '<div class="field"><label>Angebotsfrist / Abgabe</label><input type="date" id="vFrist" value="'+esc(v.frist||"")+'"></div>'+
-            '<div class="field"><label>Angebot abgegeben am</label><input type="date" id="vAngebotAm" value="'+esc(v.angebotAm||"")+'"></div>'+
-          "</div>"+
-          '<div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">'+
-            '<button class="btn sm" data-act="angebot-heute">Angebot heute abgegeben</button>'+
-            '<button class="btn sm" data-act="wv-frist">Wiedervorlage vor der Frist</button>'+
-          "</div>"+
+      '<div class="fx-body">'+
+        '<aside class="fx-side">'+
+          (neu ? vZuordnung(v, firmen, objekte, true) : "")+
+          vKontaktKarte(f)+vFirmaKarte(f)+(o ? vObjektKarte(o) : "")+vDetailsKarte(v)+
+          (neu ? "" : vZuordnung(v, firmen, objekte, false))+
+        "</aside>"+
+        '<div class="fx-main">'+
+          jetztKasten(v)+vEingabe(v, tab)+vGeplant(v)+verlaufHTML(v, akt, anh)+
         "</div>"+
-
-        stammHTML(v, firmen, objekte, f)+
-
-        '<div class="section"><div class="section-t">Wiedervorlagen'+
-          '<span class="add"><button class="btn sm" data-act="wv-neu">+ Termin</button></span></div>'+
-          (wvListe.length ? wvListe.map(x=>{
-            const t = tageBis(x.datum);
-            const cls = x.erledigt ? "" : t<0 ? "crit" : t<=3 ? "warn" : "";
-            return '<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--line)">'+
-              '<span class="chip '+cls+'">'+esc(fmtDatum(x.datum))+"</span>"+
-              '<span class="tiny" style="flex:1;'+(x.erledigt?"text-decoration:line-through;color:var(--ink-3)":"")+'">'+esc(x.anlass||"Wiedervorlage")+"</span>"+
-              (x.erledigt ? '<span class="tiny muted">erledigt</span>'
-                          : '<button class="btn sm" data-wv-done="'+x.id+'">Erledigt</button>')+
-              '<button class="btn sm ghost" data-wv-del="'+x.id+'">✕</button>'+
-            "</div>";
-          }).join("") : '<div class="tiny muted">Keine Wiedervorlage. Sobald ein Abgabedatum eingetragen ist, wird automatisch eine gesetzt.</div>')+
-        "</div>"+
-
-        '<div class="section"><div class="section-t">Wettbewerb</div>'+
-          '<div class="grid2">'+
-            '<div class="field"><label>Vertragsende Wettbewerb</label><input type="date" id="vVertragsende" value="'+esc(v.vertragsendeWettbewerb)+'"></div>'+
-            '<div class="field"><label>&nbsp;</label><button class="btn sm" data-act="wv-vertragsende">Wiedervorlage davor setzen</button></div>'+
-          "</div>"+
-          '<div class="tiny muted" style="margin-top:6px">Nur für die Akquise: 4 Monate vor dem Vertragsende ansprechen, bei Kliniken und großen MVZ 9 Monate.</div>'+
-        "</div>"+
-
-        "</div>"+
-
-        "<div>"+
-        verlaufHTML(v, akt, anh)+
-
-        '<div class="section"><div class="section-t">Abschluss</div>'+
-          (v.ergebnis
-            ? '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">'+
-                '<span class="chip '+(v.ergebnis==="gewonnen"?"ok":"")+'">'+(v.ergebnis==="gewonnen"?"Auftrag erhalten":"Absage")+"</span>"+
-                (v.absagegrund?'<span class="tiny muted">Grund: '+esc(v.absagegrund)+"</span>":"")+
-                '<button class="btn sm" data-act="abschluss-zuruck">Wieder öffnen</button></div>'
-            : '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
-              '<button class="btn sm" data-act="gewonnen">Auftragserteilung</button>'+
-              '<button class="btn sm" data-act="verloren">Absage</button>'+
-              '<span class="tiny muted">Auftragserteilung setzt 90-Tage-Check und Empfehlungstermin, Absage fragt den Grund und merkt in 9 Monaten wieder vor.</span></div>')+
-        "</div>"+
-
-      "</div></div></div>"+
-      '<div class="drawer-foot">'+
+      "</div>"+
+      '<div class="fx-foot">'+
         '<button class="btn primary" data-act="vorgang-speichern">Speichern</button>'+
         '<button class="btn ghost" data-close="1">Abbrechen</button>'+
-        '<div style="flex:1"></div>'+
-        '<button class="btn danger" data-act="vorgang-loeschen">Löschen</button>'+
       "</div>"+
     "</div>", { vorgangId:id }, true);
 }
@@ -2578,7 +3167,9 @@ function vorgangOeffnen(id){
    Pipeline steht, dann in einem Satz, was gerade brennt.
 ------------------------------------------------------------------- */
 
-/* Position in der Pipeline. Alte Datenwerte werden mit übersetzt. */
+function stufenIndexAkq(v){ return v.stufe === "kontaktiert" ? 1 : 0; }
+/* Position in der Pipeline. Alte Datenwerte werden mit übersetzt;
+   kontaktiert/besichtigung zaehlen bei einem Angebot zur ersten Spalte. */
 function stufenIndex(v){
   const id = v.stufe === "angebot_erstellt" ? "angebot_versendet" : v.stufe;
   const i = STUFEN.findIndex(s => s.id === id);
@@ -2616,91 +3207,17 @@ function vorgangStatus(v){
   return { cls:"", text:"Kein Termin gesetzt" };
 }
 
-/* Ansprechpartner und Objekt gehoeren nach oben, nicht in eine
-   zugeklappte Stammdatenzeile. Steht im Feld nur Muell aus einem
-   Mail-Import, wird das hier gesagt statt einen Namen vorzugaukeln. */
-function vorgangKontaktzeile(v, f){
-  const o = v.objektId ? DB.objekt(v.objektId) : null;
-  const adr = o ? [o.name || o.strasse, [o.plz, o.ort].filter(Boolean).join(" ")]
-                    .filter(s => String(s||"").trim()).join(" \u00b7 ") : "";
-  if(!f) return '<div class="vkontakt"><span class="kein">Keine Firma zugeordnet</span>'+
-    '<button class="btn sm ghost" data-act="mail-ansehen">\u2709 Eingegangene E-Mail</button></div>';
-  const roh   = String(f.ansprechpartner||"").trim();
-  const name  = personKurz(roh);
-  const teile = roh.split(",").map(s=>s.trim()).filter(Boolean);
-  const funk  = (name && teile.length > 1) ? teile.slice(1).join(", ") : "";
-  return '<div class="vkontakt">'+
-    (name ? '<span class="name">'+esc(name)+"</span>"+
-            (funk ? '<span class="funk">'+esc(funk)+"</span>" : "")
-          : '<span class="kein">Kein Ansprechpartner hinterlegt</span>')+
-    kontaktLinks(f)+
-    '<button class="btn sm'+(v.mailText?" primary":" ghost")+'" data-act="mail-ansehen">'+
-      (v.mailText ? "\u2709 Eingegangene E-Mail" : "\u2709 E-Mail hinterlegen")+"</button>"+
-    (adr ? '<span class="objekt">'+esc(adr)+"</span>" : "")+
-  "</div>";
-}
-
-function vorgangKopf(v, anh){
-  const i  = stufenIndex(v);
-  const st = vorgangStatus(v);
-  const n  = (anh || DB.anhaengeVon(v.id)).length;
-  const letzte = STUFEN.length - 1;
-  const balken = STUFEN.map((s,k) => {
-    let c = "";
-    if(k <= i) c = (v.ergebnis === "gewonnen" && k === letzte) ? "an ende" : "an";
-    return '<span class="'+c+'" title="'+esc(s.name)+'"></span>';
-  }).join("");
-  return '<div class="stufenleiste">'+balken+"</div>"+
-    '<div class="statuszeile"><b>Stufe '+(i+1)+" von "+STUFEN.length+" · "+
-      esc(stufenName(v.stufe))+"</b> · "+
-      '<span class="'+st.cls+'">'+esc(st.text)+"</span>"+
-      (n ? ' · <span class="muted">'+n+" Datei"+(n>1?"en":"")+"</span>" : "")+
-    "</div>";
-}
-
-/* ---------- 7a2. Stammdaten – eingeklappt eine Lesezeile ------
-   Firma, Objekt, Kontaktweg und Herkunft ändert man einmal beim
-   Anlegen. Zugeklappt stehen sie als Satz da, aufgeklappt als Felder.
-------------------------------------------------------------------- */
-function stammZeile(v, f){
-  const o = v.objektId ? DB.objekt(v.objektId) : null;
-  const teile = [
-    f ? f.name : "Keine Firma zugeordnet",
-    o ? (o.name || o.strasse || "Objekt ohne Namen") : "kein Objekt",
-    v.herkunft || "",
-    v.kontaktweg || ""
-  ].filter(Boolean);
-  return teile.join(" · ");
-}
-
-function stammHTML(v, firmen, objekte, f){
-  const offen = v.entwurf || !v.firmaId || !(v.titel||"").trim();
-  return '<details class="stamm"'+(offen?" open":"")+' id="stammBox">'+
-    "<summary>"+
-      '<span class="pfeil">▸</span>'+
-      '<span class="zeile">'+esc(stammZeile(v, f))+"</span>"+
-      '<span class="tu">ändern</span>'+
-    "</summary>"+
-    '<div class="inhalt"><div class="grid2">'+
-      '<div class="field"><label>Titel</label><input type="text" id="vTitel" value="'+esc(v.titel)+'" placeholder="z.B. Unterhaltsreinigung MVZ Nordend"></div>'+
-      '<div class="field"><label>Stufe</label><select id="vStufe">'+optionen(STUFEN, v.stufe)+"</select></div>"+
-      '<div class="field"><label>Firma</label><select id="vFirma">'+optionen(firmen.map(x=>({id:x.id,name:x.name})), v.firmaId, "— keine —")+"</select></div>"+
-      '<div class="field"><label>Objekt</label><select id="vObjekt">'+optionen(objekte.map(o=>({id:o.id,name:o.name||o.strasse||"Objekt ohne Namen"})), v.objektId, "— kein Objekt —")+"</select></div>"+
-      '<div class="field"><label>Kontaktweg</label><select id="vWeg">'+optionen(WEGE, v.kontaktweg)+"</select></div>"+
-      '<div class="field"><label>Herkunft</label><select id="vHerkunft">'+optionen(HERKUNFT, v.herkunft)+"</select></div>"+
-    "</div></div>"+
-  "</details>"+
-  '<div class="field" style="margin-top:12px"><label>Notiz</label><textarea id="vNotiz" placeholder="Was ist der Stand?">'+esc(v.notiz)+"</textarea></div>";
-}
-
-/* ---------- 7a3. Verlauf – Chronik und Anhänge in einer Spur --
-   Ein Telefonat, ein Angebots-PDF und eine Notiz gehören zur selben
-   Geschichte. Deshalb eine Liste, neueste oben, statt zweier Kästen.
+/* ---------- 7a3. Verlauf – Chronik, Dateien und die Original-Mail
+   in einer Spur, neueste oben.
 ------------------------------------------------------------------- */
 function verlaufHTML(v, akt, anh){
   const posten = [];
+  const hatMail = !!String(v.mailText||"").trim();
+  let mailDran = false;
 
   for (const a of akt){
+    const mailHier = hatMail && !mailDran && a.typ === "E-Mail" && /^Eingehende Anfrage/.test(a.text||"");
+    if(mailHier) mailDran = true;
     const lang  = (a.text||"").length > 260;
     const offen = App.aktOffen.has(a.id);
     posten.push({ zeit:(a.datum||"")+" "+(a.angelegt||""), html:
@@ -2708,6 +3225,7 @@ function verlaufHTML(v, akt, anh){
         '<div class="k">'+esc(a.typ)+'<span class="d">'+esc(fmtDatum(a.datum))+"</span></div>"+
         '<div class="b'+(lang && !offen ? " zu" : "")+'">'+esc(a.text||"—")+"</div>"+
         '<div class="akt-tools">'+
+          (mailHier ? '<button class="btn sm" data-act="mail-ansehen">Original-Mail</button>' : "")+
           (lang ? '<button class="btn sm ghost" data-akt-auf="'+a.id+'">'+(offen?"weniger":"ganzer Text")+"</button>" : "")+
           '<button class="btn sm ghost" data-akt-del="'+a.id+'" title="Eintrag löschen">Löschen</button>'+
         "</div>"+
@@ -2719,40 +3237,32 @@ function verlaufHTML(v, akt, anh){
     posten.push({ zeit:tag+" "+(a.angelegt||""), html:
       '<div class="akt zeile-datei">'+
         '<div class="k">Datei<span class="d">'+esc(fmtDatum(tag))+"</span></div>"+
-        '<div class="b"><span>📎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+
+        '<div class="b"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+
           esc(a.dateiname)+'">'+esc(a.dateiname)+'</span><span class="tiny muted">'+esc(groesseText(a.groesse))+"</span></div>"+
         '<div class="akt-tools">'+
-          '<button class="btn sm primary" data-act="anh-oeffnen" data-anh="'+a.id+'">Öffnen</button>'+
+          '<button class="btn sm" data-act="anh-oeffnen" data-anh="'+a.id+'">Öffnen</button>'+
           '<button class="btn sm ghost" data-act="anh-loeschen" data-anh="'+a.id+'">Löschen</button>'+
         "</div>"+
       "</div>" });
   }
 
+  if(hatMail && !mailDran){
+    const tag = v.anfrageAm || (v.angelegt||"").slice(0,10);
+    posten.push({ zeit:tag+" 0", html:
+      '<div class="akt">'+
+        '<div class="k">E-Mail<span class="d">'+esc(fmtDatum(tag))+"</span></div>"+
+        '<div class="b">Eingegangene Anfrage</div>'+
+        '<div class="akt-tools"><button class="btn sm" data-act="mail-ansehen">Original-Mail</button></div>'+
+      "</div>" });
+  }
+
   posten.sort((x,y) => y.zeit.localeCompare(x.zeit));
 
-  return '<div class="section verlauf" id="anhZone"><div class="section-t">Verlauf'+
-    (posten.length ? ' <span class="chip">'+posten.length+"</span>" : "")+
-    '<span class="add" style="display:flex;gap:6px">'+
-      '<button class="btn sm" data-act="akt-neu">+ Notiz</button>'+
-      '<button class="btn sm" data-act="anh-waehlen">+ Datei</button>'+
-    "</span></div>"+
-    '<input type="file" id="anhInput" multiple class="hidden">'+
-    '<div id="aktForm" class="hidden" style="background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:12px;margin-bottom:12px">'+
-      '<div class="grid2">'+
-        '<div class="field"><label>Art</label><select id="aTyp">'+optionen(AKT_TYPEN,"Anruf")+"</select></div>"+
-        '<div class="field"><label>Datum</label><input type="date" id="aDatum" value="'+ISO(new Date())+'"></div>'+
-      "</div>"+
-      '<div class="field" style="margin-top:10px"><label>Was ist passiert</label><textarea id="aText" placeholder="Erreicht, Frau Weber ist zuständig, Ausschreibung im Herbst"></textarea></div>'+
-      '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn primary sm" data-act="akt-speichern">Eintragen</button>'+
-      '<button class="btn sm ghost" data-act="akt-abbrechen">Abbrechen</button></div>'+
-    "</div>"+
+  return '<section class="fx-card verlauf"><div class="fx-card-kopf"><div class="fx-lbl">Verlauf'+
+      (posten.length ? ' <span class="chip">'+posten.length+"</span>" : "")+"</div></div>"+
     (posten.length ? posten.map(x=>x.html).join("")
-      : '<div class="tiny muted">Noch nichts dokumentiert. Anrufe und Notizen über „+ Notiz“, '+
-        "Angebots-PDF und Leistungsverzeichnis über „+ Datei“.</div>")+
-    (v.entwurf
-      ? '<div class="dropzeile">Vorgang erst speichern, danach können Dateien angehängt werden.</div>'
-      : '<div class="dropzeile">Dateien hierher ziehen · höchstens 25 MB pro Datei</div>')+
-  "</div>";
+      : '<div class="tiny muted">Noch nichts dokumentiert. Notizen und Anrufe oben über die Reiter eintragen.</div>')+
+  "</section>";
 }
 
 /* ---------- 7b. Der Kasten "Jetzt dran" ------------------------
@@ -2778,8 +3288,36 @@ function naechsterSchritt(v){
     warum: v.ergebnis==="gewonnen"
       ? "90-Tage-Check und Empfehlungstermin sind vorgemerkt."
       : "Wiedervorlage zur Reaktivierung ist gesetzt."+(v.absagegrund?" Grund: "+v.absagegrund+".":""),
-    tasten: '<button class="btn sm" data-act="abschluss-zuruck">Wieder öffnen</button>'
+    tasten: ""
   };
+
+  /* B28: Kaltakquise-Kontakt bei einem Kunden – deutlich warnen */
+  if(!istDeal(v)){
+    const fk = DB.firma(v.firmaId);
+    const zg = fk ? zielgruppe(fk) : "";
+    if(zg === "Kunde") return {
+      ton:"crit", was:"Aktueller Kunde – keine Kaltakquise",
+      warum:"Diese Firma ist Kunde. Für einen neuen Auftrag „Will ein Angebot“ wählen, sonst den Kontakt löschen.",
+      tasten:'<button class="btn" data-act="akq-angebot">Angebot anlegen</button>'
+    };
+    if(zg === "Ehemaliger Kunde" && stufenIndexAkq(v) === 0) return {
+      ton:"warn", was:"Ehemaliger Kunde – zurückgewinnen",
+      warum:"Nicht wie Kaltakquise ansprechen: an die frühere Zusammenarbeit anknüpfen und fragen, was heute fehlt.",
+      tasten: anrufen
+    };
+  }
+
+  /* B28: Dreimal nachgefasst ohne Antwort – jetzt entscheiden statt
+     das Angebot still liegen zu lassen */
+  if(istDeal(v) && v.angebotAm && Number(v.nachfassStufe) >= 3) {
+    const w3 = wvNaechste(v);
+    if(!w3 || tageBis(w3.datum) <= 0) return {
+      ton:"crit", was:"Keine Rückmeldung nach 3× Nachfassen",
+      warum:"Letztes Nachfassen am "+fmtDatum(v.nachfassLetzte||v.angebotAm)+". Absage mit Grund buchen, damit klar bleibt, warum es nichts wurde – oder anrufen und neu terminieren.",
+      tasten:'<button class="btn primary sm" data-act="absage-keine-rm">Absage: keine Rückmeldung</button>'+anrufen+
+        '<button class="btn sm" data-act="vtab" data-tab="wv">Neuer Termin</button>'
+    };
+  }
 
   const nf = nachfassFaellig(v);
   const tnf = nf ? tageBis(nf) : null;
@@ -2797,8 +3335,7 @@ function naechsterSchritt(v){
     ton: fi.cls || "warn",
     was:"Angebot abgeben",
     warum: fi.text,
-    tasten:'<button class="btn primary sm" data-act="angebot-heute">Angebot heute abgegeben</button>'+
-      '<button class="btn sm" data-act="wv-frist">Wiedervorlage vor der Frist</button>'
+    tasten:'<button class="btn primary" data-act="angebot-heute">Angebot heute abgegeben</button>'
   };
 
   if(nf) return {
@@ -2809,13 +3346,30 @@ function naechsterSchritt(v){
     tasten: mailen
   };
 
-  const i = stufenIndex(v);
-  if(i <= 1) return {
-    ton:"",
-    was: i===0 ? "Erstkontakt herstellen" : "Am Ball bleiben",
-    warum:"Vorschlag: "+leitName(leitVorschlag(v)),
-    tasten: anrufen
-  };
+  if(!istDeal(v)){
+    const k = stufenIndexAkq(v);
+    const w0 = wvNaechste(v);
+    return {
+      ton: w0 ? (tageBis(w0.datum)<0 ? "crit" : tageBis(w0.datum)<=3 ? "warn" : "") : "",
+      was: k===0 ? "Erstkontakt herstellen" : "Am Ball bleiben",
+      warum:(w0 ? (w0.anlass||"Wiedervorlage")+" · "+fmtDatum(w0.datum)+" · "+relativ(w0.datum)+". " : "")+
+        "Vorschlag: "+leitName(leitVorschlag(v)),
+      tasten: anrufen
+    };
+  }
+
+  /* B28: Angebot ist noch zu erstellen */
+  if(stufenIndex(v) === 0 && !v.angebotAm) {
+    const w1 = wvNaechste(v);
+    return {
+      ton: w1 ? (tageBis(w1.datum)<0 ? "crit" : tageBis(w1.datum)<=3 ? "warn" : "") : "warn",
+      was: v.stufe === "besichtigung" ? "Besichtigung, dann Angebot erstellen" : "Angebot erstellen",
+      warum: w1 ? (w1.anlass||"Wiedervorlage")+" · "+fmtDatum(w1.datum)+" · "+relativ(w1.datum)
+                : "Noch kein Termin – bis wann soll das Angebot raus?",
+      tasten:'<button class="btn primary sm" data-act="angebot-heute">Angebot heute abgegeben</button>'+
+        '<button class="btn sm" data-act="vtab" data-tab="wv">Termin setzen</button>'
+    };
+  }
 
   const w = wvNaechste(v);
   if(w) return {
@@ -2829,7 +3383,7 @@ function naechsterSchritt(v){
     ton:"",
     was:"Kein Termin gesetzt",
     warum:"Ohne Wiedervorlage geht der Vorgang unter. Termin setzen oder anrufen.",
-    tasten:'<button class="btn sm" data-act="wv-neu">Wiedervorlage setzen</button>'+anrufen
+    tasten:'<button class="btn sm" data-act="vtab" data-tab="wv">Wiedervorlage setzen</button>'+anrufen
   };
 }
 
@@ -2845,7 +3399,7 @@ function jetztKasten(v){
     '<div class="kopf">Jetzt dran</div>'+
     '<div class="was">'+esc(s.was)+"</div>"+
     '<div class="warum">'+esc(s.warum)+"</div>"+
-    '<div class="tasten">'+s.tasten+"</div>"+
+    (s.tasten ? '<div class="tasten">'+s.tasten+"</div>" : "")+
     (fuss ? '<div class="fuss">'+fuss+"</div>" : "")+
   "</div>";
 }
@@ -2859,7 +3413,7 @@ function vorgangFelderLesen(v){
   set("vertragsendeWettbewerb","#vVertragsende"); set("notiz","#vNotiz");
   set("anfrageAm","#vAnfrageAm"); set("frist","#vFrist"); set("angebotAm","#vAngebotAm");
   const nt = g("#vNachfassTage");
-  if(nt!==undefined) v.nachfassTage = Math.min(90, Math.max(1, Number(nt)||10));
+  if(nt!==undefined) v.nachfassTage = Math.min(90, Math.max(1, Number(nt)||14));
   /* B17: Automatik hier statt nur beim Speichern – egal, welcher Knopf
      die Felder zuerst uebernimmt, die Erinnerungen werden angelegt. */
   const m = [stufenAutomatik(v, altStufe), terminAutomatik(v, altFrist, altAngebot)].filter(Boolean).join(" · ");
@@ -2897,20 +3451,57 @@ function terminAutomatik(v, altFrist, altAngebot){
     }
   }
   if(v.angebotAm && v.angebotAm !== altAngebot && !v.ergebnis){
-    const i    = STUFEN.findIndex(s => s.id === v.stufe);
     const ziel = STUFEN.findIndex(s => s.id === "angebot_versendet");
-    if(i > -1 && i < ziel) v.stufe = "angebot_versendet";
+    if(v.stufe !== "abschluss" && stufenIndex(v) < ziel) v.stufe = "angebot_versendet";
     /* offene Frist-Erinnerungen abhaken, das Angebot ist ja raus */
     for (const x of (v.wiedervorlagen||[]))
       if(!x.erledigt && (x.anlass||"").indexOf("Angebot vor Frist") === 0) x.erledigt = true;
     const tage = nachfassFrist(v);
-    const offen = (v.wiedervorlagen||[]).some(x => !x.erledigt && (x.anlass||"").indexOf("Nachfassen") === 0);
-    if(!offen){
+    /* B24: Bei einer Versandkorrektur die bestehende(n) offene(n)
+       Nachfassen-Wiedervorlage(n) mitverschieben statt sie stehen zu
+       lassen oder die Automatik durch sie blockieren zu lassen. */
+    const offeneNachfass = (v.wiedervorlagen||[]).filter(x => !x.erledigt && (x.anlass||"").indexOf("Nachfassen zum Angebot") === 0);
+    if(offeneNachfass.length){
+      const neuesDatum = plusTage(tage, v.angebotAm);
+      for (const w of offeneNachfass) w.datum = neuesDatum;
+      meldungen.push("Nachfasstermin an neues Versanddatum angepasst");
+    } else {
       wvSetzen(v, plusTage(tage, v.angebotAm), "Nachfassen zum Angebot (Stufe 1)");
       meldungen.push("Nachfassen in "+tage+" Tagen vorgemerkt");
     }
   }
   return meldungen.join(" · ");
+}
+
+/* B28: Nachfassen nach 14 statt 10 Tagen. Einmalig: offene Angebote, bei
+   denen noch nicht nachgefasst wurde, und deren automatischer
+   Nachfasstermin (Abgabe + 10 Tage) ruecken auf Abgabe + 14 Tage.
+   Selbst gesetzte Termine bleiben unberuehrt. */
+function nachfass14Angebote(){
+  try{ if(localStorage.getItem("aqt.b28nf14v")) return 0; }catch(_){ return 0; }
+  let n = 0;
+  for (const v of Store.data.vorgaenge){
+    if(v.ergebnis || !istDeal(v) || Number(v.nachfassTage) !== 10 || Number(v.nachfassStufe)) continue;
+    v.nachfassTage = 14; n++;
+    if(!v.angebotAm) continue;
+    const alt = plusTage(10, v.angebotAm), neu = plusTage(14, v.angebotAm);
+    for (const w of (v.wiedervorlagen||[]))
+      if(!w.erledigt && w.datum === alt && (w.anlass||"").indexOf("Nachfassen") === 0) w.datum = neu;
+  }
+  if(n) Store.save();
+  try{ localStorage.setItem("aqt.b28nf14v", "1"); }catch(_){}
+  return n;
+}
+/* Die Einstellung selbst: steht dort noch der alte Standard 10, wird 14
+   daraus (einmal pro Browser, danach gilt, was eingestellt ist). */
+function nachfass14Vorlage(){
+  try{ if(localStorage.getItem("aqt.b28nf14")) return; }catch(_){ return; }
+  const d = Vorlagen.aktuell();
+  if(Number(d.nachfassTage) === 10){
+    d.nachfassTage = 14;
+    Vorlagen.sichern().catch(e => console.warn("Vorlage 14 Tage nicht gespeichert:", e));
+  }
+  try{ localStorage.setItem("aqt.b28nf14", "1"); }catch(_){}
 }
 
 /* Fristen bei alten Vorgängen aus der Notiz nachtragen, damit die
@@ -2932,7 +3523,7 @@ function fristenNachtragen(){
       const tag = (erste && erste.datum) || (v.angelegt ? ISO(v.angelegt) : "");
       if(tag){ v.anfrageAm = tag; n++; }
     }
-    if(!v.nachfassTage) v.nachfassTage = 7;
+    if(!v.nachfassTage) v.nachfassTage = 14;
     /* Die frühere Spalte "Angebot erstellt" gibt es nicht mehr */
     if(v.stufe === "angebot_erstellt"){ v.stufe = "angebot_versendet"; n++; }
   }
@@ -3032,7 +3623,7 @@ const VORLAGE_PLATZHALTER = [
 
 const VORLAGEN_STANDARD = {
   ich: "Romano",
-  nachfassTage: 10,
+  nachfassTage: 14,
   stufen: [
     {
       kurz:"Freundlich",
@@ -3089,7 +3680,7 @@ const VORLAGEN_SCHLUESSEL = "nachfass_vorlagen";
 function vorlagenSignatur(d){
   d = d || {};
   const s = Array.isArray(d.stufen) ? d.stufen : [];
-  const teile = [ String(d.ich||"").trim(), String(Number(d.nachfassTage)||10) ];
+  const teile = [ String(d.ich||"").trim(), String(Number(d.nachfassTage)||14) ];
   for(let i=0;i<3;i++){
     const x = s[i] || {};
     teile.push(String(x.kurz||""), String(x.name||""), String(x.betreff||""), String(x.text||""));
@@ -3203,7 +3794,7 @@ Vorlagen.status = { ort:"", zeit:"", fehler:"" };
 function vorlagenUnterschied(a, b){
   const namen = [];
   if(String((a||{}).ich||"").trim() !== String((b||{}).ich||"").trim()) namen.push("eigener Name");
-  if((Number((a||{}).nachfassTage)||10) !== (Number((b||{}).nachfassTage)||10)) namen.push("Standardtage");
+  if((Number((a||{}).nachfassTage)||14) !== (Number((b||{}).nachfassTage)||14)) namen.push("Standardtage");
   const sa = Array.isArray((a||{}).stufen) ? a.stufen : [];
   const sb = Array.isArray((b||{}).stufen) ? b.stufen : [];
   for(let i=0;i<3;i++){
@@ -3756,8 +4347,9 @@ function leitKopieren(){
 /* Ein Klick = Chronik-Eintrag + Stufe + Wiedervorlage */
 function leitErgebnis(art){
   const v = DB.vorgang(LayerCtx.vorgangId); if(!v) return;
+  if($("#vFrist")) vorgangFelderLesen(v);   /* B25: aus dem Vorgangsfenster */
   leitSprecherSichern();
-  const nEl = $("#leitNotiz"), dEl = $("#leitDatum");
+  const nEl = $("#leitNotiz") || $("#aText"), dEl = $("#leitDatum");
   const notiz = nEl ? nEl.value.trim() : "";
   const datum = dEl ? dEl.value : "";
   const eintrag = kopf => neueAktivitaet({
@@ -3779,9 +4371,11 @@ function leitErgebnis(art){
   }
   if(art==="termin"){
     eintrag("Termin vereinbart");
+    const warAkq = !istDeal(v);
     v.stufe="besichtigung";
     wvSetzen(v, datum || plusTage(7), "Besichtigungstermin");
-    Store.save(); vorgangOeffnen(v.id); render(); toast("Termin eingetragen"); return;
+    Store.save(); vorgangOeffnen(v.id); render();
+    toast(warAkq ? "Termin eingetragen · steht jetzt in der Pipeline (Angebot zu erstellen)" : "Termin eingetragen"); return;
   }
 
   const f = DB.firma(v.firmaId);
@@ -3904,11 +4498,29 @@ function firmenGefiltert(zahlen){
     (!f.kontaktweg || x.kontaktweg===f.kontaktweg) &&
     (!f.status     || x.status===f.status) &&
     (!f.quelle     || x.quelle===f.quelle) &&
+    (!f.zielgruppe || zielgruppe(x)===f.zielgruppe) &&
     /* B22: Ablage ist standardmaessig ausgeblendet; "*" = nur Ablage */
     ((f.ablage||"")==="" ? !x.ablage : (f.ablage==="*" ? !!x.ablage : x.ablage===f.ablage))
-  ).map(x => ({ x, k: s.feld==="vorgaenge" ? (zahlen.get(x.id)||0) : String(x[s.feld]==null?"":x[s.feld]).toLowerCase() }))
-   .sort((a,b) => typeof a.k==="number" ? (a.k-b.k)*s.richtung : SORT_DE.compare(a.k,b.k)*s.richtung)
+  ).map(x => ({ x, k: sortSchluessel(x, s.feld, zahlen), n: String(x.name||""), p: String(x.plz||"") }))
+   .sort((a,b) => {
+     /* B28: Leere Werte immer ans Ende, egal in welche Richtung.
+        Bei Gleichstand nach Firmenname, dann PLZ – vorher blieb dort die
+        Ladereihenfolge stehen, und die ist zufaellig (Sortierung nach ID). */
+     const la = a.k === "" , lb = b.k === "";
+     if(la !== lb) return la ? 1 : -1;
+     let d = 0;
+     if(!la) d = (typeof a.k === "number" ? a.k - b.k : SORT_NAME.compare(a.k, b.k)) * s.richtung;
+     return d || SORT_NAME.compare(a.n, b.n) || a.p.localeCompare(b.p);
+   })
    .map(e => e.x);
+}
+/* Status in sinnvoller Reihenfolge statt alphabetisch */
+const STATUS_RANG = { "Kunde":1, "Ehemaliger Kunde":2, "Interessent":3, "Kein Interesse":4, "Verloren":5 };
+function sortSchluessel(x, feld, zahlen){
+  if(feld === "vorgaenge") return zahlen.get(x.id) || 0;
+  if(feld === "status") return x.status ? (STATUS_RANG[x.status] || 9) : "";
+  const w = String(x[feld]==null ? "" : x[feld]).trim();
+  return w;
 }
 
 /* Die Tabelle zeigt zuerst nur einen Teil der Zeilen; beim Herunterscrollen
@@ -4003,6 +4615,23 @@ function renderFirmen(){
     '<button class="btn primary" data-act="firma-neu">+ Firma</button>';
 
   const alle = Store.data.firmen;
+
+  /* B28: Kaltakquise – oben umschalten zwischen allen Firmen und der
+     Anrufliste (offene Akquise-Kontakte mit Wiedervorlage) */
+  const akq = Store.data.vorgaenge.filter(v => !istDeal(v) && !v.ergebnis);
+  const akqUeber = akq.filter(v => { const w = wvNaechste(v); return w && tageBis(w.datum) < 0; }).length;
+  const fseg = (id, name, n, warn) => '<button data-fansicht="'+id+'" class="'+((App.firmenAnsicht||"liste")===id?"on":"")+'">'+
+    name+' <span class="chip'+(warn?" crit":"")+'">'+n+"</span></button>";
+  const fkopf = '<div class="toolbar"><div class="seg">'+
+      fseg("liste","Alle Firmen",alle.filter(x=>!x.ablage).length)+
+      fseg("anruf","Anrufliste",akq.length,akqUeber)+
+    "</div>"+
+    '<span class="tiny muted">Kunden sind für Kaltakquise gesperrt · Ehemalige werden zur Rückgewinnung angesprochen</span></div>';
+  if(App.firmenAnsicht === "anruf"){
+    $("#content").innerHTML = fkopf + akquiseHTML(akq);
+    return;
+  }
+
   if(!alle.length){
     $("#content").innerHTML = '<div class="empty"><h3>Noch keine Firma erfasst</h3>'+
       "<p>Firmen sind die Grundlage: jeder Vorgang hängt an einer. Leg eine einzeln an "+
@@ -4034,7 +4663,7 @@ function renderFirmen(){
   const gesamt    = App.auswahl.size;
   const versteckt = gesamt - gewaehlt.length;
 
-  let h = "";
+  let h = fkopf;
   if(gesamt){
     h += '<div class="selbar"><span class="n">'+gesamt+"</span> ausgewählt"+
       (versteckt
@@ -4059,6 +4688,8 @@ function renderFirmen(){
 
   h += '<div class="panel">'+
     '<div class="listkopf"><b>'+liste.length+"</b> von "+alle.length+" Firmen angezeigt"+
+      '<select data-filter="zielgruppe" style="width:auto;margin-left:8px;padding:3px 26px 3px 8px;font-size:12.5px" title="Nach Zielgruppe filtern – z.B. alle Ehemaligen, um sie gesammelt auf Aktiv oder Passiv zu stellen">'+
+        optionen(ZIELGRUPPEN, f.zielgruppe||"", "Alle Zielgruppen")+"</select>"+
       (function(){
         const s = suchWorte(f.name);
         return s.darfNicht.length
@@ -4182,15 +4813,114 @@ function statusChip(s){
   return '<span class="chip '+cls+'">'+esc(s||"—")+"</span>";
 }
 
-/* ---------- 9. Firma öffnen ----------------------------------- */
-function firmaOeffnen(id){
-  const x = DB.firma(id); if(!x) return;
-  const objekte = DB.objekteVon(id);
-  const vorgaenge = DB.vorgaengeVon(id);
+/* ---------- 9. Firma öffnen (B25) -----------------------------
+   Gleicher Aufbau wie der Vorgang: links Kontakt und Einordnung, rechts
+   „Jetzt dran“, Vorgaenge/Objekte, Notiz und Verlauf ueber alle Vorgaenge.
+   Was beim Import in der Notiz gelandet ist (ZEILE, BRIEFANREDE …), steht
+   eingeklappt unter „Import-Daten“ und geht beim Speichern nicht verloren.
+------------------------------------------------------------------- */
+const IMPORT_ZEILE = /^(?:ZEILE:|Branche laut Datei:|Aus Liste vermerkt:|Aus Adresssuche übernommen|Google-Kategorie:|\d+ Google-Bewertungen|[A-ZÄÖÜ][A-ZÄÖÜ0-9_]{2,}:\s)/;
+function notizTeilen(n){
+  const eigen = [], imp = [];
+  String(n||"").split("\n").forEach(z => (IMPORT_ZEILE.test(z.trim()) ? imp : eigen).push(z));
+  return { eigen:eigen.join("\n").trim(), imp:imp.join("\n").trim() };
+}
 
-  /* Objekte stehen als eine Zeile je Gebäude/Bauvorhaben. Alles Weitere
-     steckt im Detailfenster – bei einem Bauunternehmen mit zehn Vorhaben
-     bleibt die Firmenkarte sonst nicht mehr überschaubar. */
+function fKontaktKarte(x){
+  const bearbeiten = !!x.entwurf || !String(x.name||"").trim();
+  const roh = String(x.ansprechpartner||"").trim();
+  const lesen =
+    '<div id="fKontaktLesen"'+(bearbeiten?' class="hidden"':"")+">"+
+      (roh ? '<div class="fx-name">'+esc(personKurz(roh) || roh)+"</div>"+
+             (personKurz(roh) && roh.indexOf(",")>0 ? '<div class="fx-funk">'+esc(roh.split(",").slice(1).join(",").trim())+"</div>" : "")
+           : '<div class="fx-fehlt">Kein Ansprechpartner <button class="linkbtn" data-act="fkontakt-edit">eintragen</button></div>'+
+             '<div class="tiny muted">Brief geht an „Sehr geehrte Damen und Herren“</div>')+
+      telZeile(x.telefon)+mailZeile(x.email)+
+      (x.website ? '<a class="fx-link" href="'+esc(webUrl(x.website))+'" target="_blank" rel="noopener">'+ICO.web+
+        esc(String(x.website).replace(/^https?:\/\//i,"").replace(/\/$/,""))+"</a>" : "")+
+      adresseHTML(x)+
+      (kartenUrl(x) ? '<div class="fx-mini"><a href="'+esc(kartenUrl(x))+'" target="_blank" rel="noopener">⌖ Karte</a></div>' : "")+
+    "</div>";
+  const f = (id, lbl, typ, wert, ph) => '<div class="field"><label for="'+id+'">'+lbl+"</label>"+
+    '<input type="'+typ+'" id="'+id+'" value="'+esc(wert||"")+'"'+(ph?' placeholder="'+esc(ph)+'"':"")+"></div>";
+  const edit =
+    '<div id="fKontaktEdit" style="display:flex;flex-direction:column;gap:10px;margin-top:8px"'+(bearbeiten?"":' class="hidden"')+">"+
+      f("fName","Firmenname","text",x.name)+
+      f("fAP","Ansprechpartner","text",x.ansprechpartner,"z.B. Frau Weber, Einkauf")+
+      f("fTel","Telefon","tel",x.telefon)+
+      f("fMail","E-Mail","email",x.email)+
+      f("fWeb","Website","text",x.website)+
+      f("fStr","Straße","text",x.strasse)+
+      '<div style="display:grid;grid-template-columns:90px minmax(0,1fr);gap:8px">'+
+        f("fPlz","PLZ","text",x.plz)+f("fOrt","Ort","text",x.ort)+"</div>"+
+      '<div class="tiny muted">Übernommen wird mit „Speichern“ unten.</div>'+
+    "</div>";
+  return '<section class="fx-card"><div class="fx-card-kopf"><div class="fx-lbl">Kontakt</div>'+
+      (bearbeiten ? "" : '<button class="linkbtn" data-act="fkontakt-edit">Bearbeiten</button>')+"</div>"+
+    lesen+edit+"</section>";
+}
+
+function fEinordnungKarte(x){
+  const z = (lbl, id, liste, wert, leer) => '<div class="fx-zeile"><label for="'+id+'">'+lbl+"</label>"+
+    '<select id="'+id+'">'+optionen(liste, wert, leer)+"</select></div>";
+  return '<section class="fx-card"><div class="fx-lbl" style="margin-bottom:4px">Einordnung</div>'+
+    z("Status","fStatus",STATUS,x.status)+
+    z("Kontaktweg","fWeg",WEGE,x.kontaktweg)+
+    z("Branche","fBranche",BRANCHEN,x.branche,"— offen —")+
+    z("Gruppe","fGruppe",GRUPPEN,x.gruppe,"— keine —")+
+    z("Segment","fSegment",SEGMENTE,x.segment,"— keins —")+
+    z("Quelle","fQuelle",QUELLEN,x.quelle,"— nicht erfasst —")+
+  "</section>";
+}
+
+function fJetzt(x, vorgaenge){
+  const offen = vorgaenge.filter(v => !v.ergebnis);
+  const briefe = (x.briefe||[]).slice().sort((a,b)=>(a.datum||"").localeCompare(b.datum||""));
+  const brief = briefe.length ? briefe[briefe.length-1] : null;
+  let ton = "", was = "", warum = "", tasten = "";
+  const zg = zielgruppe(x);
+  if(!offen.length && zg === "Kunde"){
+    ton = "ok"; was = "Aktueller Kunde";
+    warum = "Keine Kaltakquise. Briefe nur mit eigenem Anlass (z.B. Saisonstart). Für einen weiteren Auftrag ein Angebot anlegen.";
+    tasten = '<button class="btn primary" data-act="angebot-fuer-firma">+ Angebot</button>';
+  } else if(!offen.length && zg === "Ehemaliger Kunde"){
+    ton = "warn"; was = "Ehemaliger Kunde – zurückgewinnen";
+    warum = "Nicht wie Kaltakquise ansprechen: an die frühere Zusammenarbeit anknüpfen. Kontaktweg: "+
+      (x.kontaktweg==="Aktiv" ? "Anrufen" : "Brief")+" (oben links unter Einordnung umstellbar).";
+    tasten = '<button class="btn primary" data-act="vorgang-fuer-firma">Rückgewinnung starten</button>'+
+      '<button class="btn" data-act="brief-vermerk">Brief verschickt</button>';
+  } else if(offen.length){
+    const naechste = offen.map(v => ({ v, w:wvNaechste(v) })).filter(e => e.w)
+      .sort((a,b)=>a.w.datum.localeCompare(b.w.datum))[0];
+    const ziel = naechste ? naechste.v : offen[0];
+    ton = naechste ? dringlichkeit(naechste.v) : "warn";
+    was = offen.length === 1 ? "1 offener Vorgang" : offen.length+" offene Vorgänge";
+    warum = naechste ? (naechste.w.anlass||"Wiedervorlage")+" · "+fmtDatum(naechste.w.datum)+" · "+relativ(naechste.w.datum)
+                     : "Kein Termin gesetzt – im Vorgang einen nächsten Schritt planen.";
+    tasten = '<button class="btn primary" data-vorgang="'+ziel.id+'">Vorgang öffnen</button>';
+  } else if(x.gesperrt){
+    was = "Für Briefe gesperrt"; warum = "Wird bei Serienbrief und Digitalpost ausgelassen.";
+  } else if(x.kontaktweg === "Aktiv"){
+    ton = "info"; was = "Erstkontakt per Telefon";
+    warum = x.telefon ? "Anrufen und das Ergebnis als Vorgang festhalten." : "Keine Telefonnummer hinterlegt.";
+    tasten = '<button class="btn primary" data-act="vorgang-fuer-firma">Akquise-Kontakt anlegen</button>'+
+      (x.telefon ? '<a class="btn" href="tel:'+esc(telUrl(x.telefon))+'" style="text-decoration:none">Anrufen</a>' : "");
+  } else if(brief){
+    ton = "ok"; was = "Auf Reaktion warten";
+    warum = "Letzter Brief am "+fmtDatum(brief.datum)+(brief.anlass?" ("+brief.anlass+")":"")+". Meldet sich jemand, wird daraus ein Vorgang.";
+    tasten = '<button class="btn primary" data-act="angebot-fuer-firma">Reaktion: Angebot anlegen</button>'+
+      '<button class="btn" data-act="brief-vermerk">Weiteren Brief vermerken</button>';
+  } else {
+    ton = "info"; was = "Bereit für die nächste Briefwelle";
+    warum = "Kontaktweg Passiv · noch kein Brief verschickt";
+    tasten = '<button class="btn primary" data-act="brief-vermerk">Brief verschickt</button>';
+  }
+  return '<div class="jetzt '+ton+'"><div class="kopf">Jetzt dran</div>'+
+    '<div class="was">'+esc(was)+"</div>"+'<div class="warum">'+esc(warum)+"</div>"+
+    (tasten ? '<div class="tasten">'+tasten+"</div>" : "")+"</div>";
+}
+
+function fVorgaengeObjekte(x, objekte, vorgaenge){
   const objektZeile = o => {
     const adr = [o.strasse, [o.plz,o.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ");
     const n = Store.data.vorgaenge.filter(v=>v.objektId===o.id).length;
@@ -4199,80 +4929,103 @@ function firmaOeffnen(id){
         '<span class="lt">'+esc(o.name||"Ohne Bezeichnung")+"</span>"+
         '<span class="ls">'+esc(adr||"keine Adresse")+(n?" · "+n+" Vorgang"+(n>1?"e":""):"")+"</span>"+
       "</button>"+
-      '<button class="btn sm ghost" data-objekt-del="'+o.id+'" title="Objekt entfernen">✕</button>'+
+      '<button class="btn sm ghost" data-objekt-del="'+o.id+'" aria-label="Objekt entfernen">✕</button>'+
     "</div>";
   };
+  const vZeile = v =>
+    '<button class="vcard'+(dringlichkeit(v)?" u-"+dringlichkeit(v):"")+(v.kontaktweg==="Passiv"?" passiv":"")+'" data-vorgang="'+v.id+'">'+
+      '<span class="v-titel">'+esc(v.titel||"Ohne Titel")+"</span>"+
+      '<span class="v-fuss"><span class="chip">'+esc(v.ergebnis ? (v.ergebnis==="gewonnen"?"Auftrag":(istDeal(v)?"Absage":"Kein Interesse"))
+        : istDeal(v) ? stufenName(v.stufe) : "Akquise · "+AKQ_STUFEN[stufenIndexAkq(v)].name)+"</span>"+
+        '<span class="rest"></span>'+(v.ergebnis ? "" : aktPunkt(v))+"</span></button>";
+  return '<div class="fx-split">'+
+    '<section class="fx-card"><div class="fx-card-kopf"><div class="fx-lbl">Vorgänge'+
+        (vorgaenge.length ? ' <span class="chip">'+vorgaenge.length+"</span>" : "")+"</div>"+
+        '<button class="linkbtn" data-act="angebot-fuer-firma">+ Angebot</button></div>'+
+      (vorgaenge.length ? vorgaenge.map(vZeile).join("")
+        : '<div class="tiny muted">Noch kein Vorgang. Entsteht, sobald jemand reagiert.</div>')+
+    "</section>"+
+    '<section class="fx-card"><div class="fx-card-kopf"><div class="fx-lbl">Objekte'+
+        (objekte.length ? ' <span class="chip">'+objekte.length+"</span>" : "")+"</div>"+
+        '<button class="linkbtn" data-act="objekt-neu">+ Objekt</button></div>'+
+      (objekte.length ? objekte.map(objektZeile).join("")
+        : '<div class="tiny muted">Kein Objekt erfasst.</div>')+
+    "</section>"+
+  "</div>";
+}
+
+function fNotizKarte(nt){
+  return '<section class="fx-card"><div class="field"><label for="fNotiz">Notiz</label>'+
+      '<textarea id="fNotiz" style="min-height:70px" placeholder="Was man über die Firma wissen sollte …">'+esc(nt.eigen)+"</textarea></div>"+
+    '<textarea id="fNotizImport" class="hidden" aria-hidden="true" tabindex="-1">'+esc(nt.imp)+"</textarea>"+
+    (nt.imp ? '<details class="fx-imp"><summary>Import-Daten anzeigen</summary><pre>'+esc(nt.imp)+"</pre></details>" : "")+
+  "</section>";
+}
+
+/* Verlauf ueber alle Vorgaenge der Firma plus Briefvermerke */
+function fVerlauf(x, vorgaenge){
+  const posten = [];
+  for (const b of (x.briefe||[]))
+    posten.push({ zeit:b.datum||"", typ:"Brief", datum:b.datum, text:"Brief verschickt"+(b.anlass?" · "+b.anlass:""), vid:"" });
+  for (const v of vorgaenge)
+    for (const a of DB.aktivitaetenVon(v.id))
+      posten.push({ zeit:(a.datum||"")+" "+(a.angelegt||""), typ:a.typ, datum:a.datum,
+        text:String(a.text||"").split("\n")[0].slice(0,160), vid:v.id, titel:v.titel });
+  posten.sort((a,b)=>b.zeit.localeCompare(a.zeit));
+  const zeig = posten.slice(0, 20);
+  return '<section class="fx-card"><div class="fx-card-kopf"><div class="fx-lbl">Verlauf'+
+      (posten.length ? ' <span class="chip">'+posten.length+"</span>" : "")+"</div></div>"+
+    (zeig.length ? zeig.map(p =>
+      '<div class="akt"><div class="k">'+esc(p.typ)+'<span class="d">'+esc(fmtDatum(p.datum))+"</span></div>"+
+      '<div class="b">'+esc(p.text||"—")+
+        (p.vid ? '<div><button class="linkbtn" data-vorgang="'+p.vid+'">'+esc(p.titel||"Vorgang")+"</button></div>" : "")+
+      "</div></div>").join("")
+      : '<div class="tiny muted">Noch nichts passiert.</div>')+
+    (posten.length > zeig.length ? '<div class="tiny muted" style="margin-top:6px">… und '+(posten.length-zeig.length)+" ältere Einträge in den Vorgängen</div>" : "")+
+  "</section>";
+}
+
+function firmaOeffnen(id){
+  const x = DB.firma(id); if(!x) return;
+  const objekte = DB.objekteVon(id);
+  const vorgaenge = DB.vorgaengeVon(id);
+  const nt = notizTeilen(x.notiz);
+  const chips = [
+    statusChip(x.status),
+    '<span class="chip">'+(x.kontaktweg==="Aktiv" ? "Aktiv · Telefon" : "Passiv · Brief")+"</span>",
+    x.branche ? '<span class="chip">'+esc(x.branche)+"</span>" : "",
+    x.quelle ? '<span class="chip">'+esc(x.quelle)+"</span>" : "",
+    x.ablage ? '<span class="chip warn">Ablage: '+esc(x.ablage)+"</span>" : "",
+    x.gesperrt ? '<span class="chip crit">Für Briefe gesperrt</span>' : ""
+  ].join("");
 
   layerZeigen(
-    '<div class="modal wide">'+
-      '<div class="drawer-head">'+
-        "<div style='min-width:0'><div class=\"eyebrow\">Firma</div><h2>"+esc(x.name||"Neue Firma")+"</h2></div>"+
-        "<div style='flex:1'></div>"+
-        '<button class="btn ghost" data-close="1">Schliessen</button>'+
-      "</div>"+
-      '<div class="drawer-body"><div class="dlg2">'+
-
-        "<div>"+
-          '<div class="section"><div class="section-t">Stammdaten</div>'+
-            '<div class="field" style="margin-bottom:12px"><label>Firmenname</label><input type="text" id="fName" value="'+esc(x.name)+'"></div>'+
-            '<div class="grid3">'+
-              '<div class="field"><label>Branche</label><select id="fBranche">'+optionen(BRANCHEN,x.branche,"— offen —")+"</select></div>"+
-              '<div class="field"><label>Kontaktweg</label><select id="fWeg">'+optionen(WEGE,x.kontaktweg)+"</select></div>"+
-              '<div class="field"><label>Status</label><select id="fStatus">'+optionen(STATUS,x.status)+"</select></div>"+
-            "</div>"+
-            '<div class="grid2" style="margin-top:12px">'+
-              '<div class="field"><label>Gruppe – Ansprache-Winkel</label><select id="fGruppe">'+optionen(GRUPPEN,x.gruppe,"— keine —")+"</select></div>"+
-              '<div class="field"><label>Segment</label><select id="fSegment">'+optionen(SEGMENTE,x.segment,"— keins —")+"</select></div>"+
-            "</div>"+
-            '<div class="field" style="margin-top:12px"><label>Quelle – woher die Adresse stammt</label>'+
-              '<select id="fQuelle">'+optionen(QUELLEN,x.quelle,"— nicht erfasst —")+"</select></div>"+
-            '<div class="grid2" style="margin-top:12px">'+
-              '<div class="field"><label>Ansprechpartner</label><input type="text" id="fAP" value="'+esc(x.ansprechpartner)+'"></div>'+
-              '<div class="field"><label>Telefon'+minilink("tel",x.telefon)+'</label><input type="tel" id="fTel" value="'+esc(x.telefon)+'"></div>'+
-              '<div class="field"><label>E-Mail'+minilink("mail",x.email)+'</label><input type="email" id="fMail" value="'+esc(x.email)+'"></div>'+
-              '<div class="field"><label>Website'+minilink("web",x.website)+'</label><input type="text" id="fWeb" value="'+esc(x.website)+'"></div>'+
-              '<div class="field"><label>Strasse</label><input type="text" id="fStr" value="'+esc(x.strasse)+'"></div>'+
-              '<div class="field"><label>PLZ / Ort</label><div style="display:flex;gap:8px">'+
-                '<input type="text" id="fPlz" value="'+esc(x.plz)+'" style="flex:0 0 88px">'+
-                '<input type="text" id="fOrt" value="'+esc(x.ort)+'"></div></div>'+
-            "</div>"+
-            '<div class="field" style="margin-top:12px"><label>Notiz</label><textarea id="fNotiz">'+esc(x.notiz)+"</textarea></div>"+
+    '<div class="fx" role="dialog" aria-label="Firma">'+
+      '<div class="fx-head"><div class="fx-top">'+
+        '<div class="fx-titel"><div class="eyebrow">Firma</div>'+
+          "<h2>"+esc(x.name||"Neue Firma")+"</h2>"+
+          '<div class="fx-chips">'+chips+"</div></div>"+
+        '<div class="fx-aktionen">'+
+          '<button class="btn" data-act="angebot-fuer-firma">+ Angebot</button>'+
+          (zielgruppe(x)==="Kunde" ? "" : '<button class="btn" data-act="vorgang-fuer-firma">+ Akquise-Kontakt</button>')+
+          '<button class="btn ghost" data-act="fmenu" aria-label="Weitere Aktionen" style="font-size:17px;padding:3px 11px">⋯</button>'+
+          '<button class="btn ghost" data-close="1">Schliessen</button>'+
+          '<div class="fx-menu hidden" id="fMenu">'+
+            '<button class="btn" data-act="brief-vermerk">Brief verschickt vermerken</button>'+
+            '<button class="btn" data-act="objekt-neu">Objekt anlegen</button>'+
+            '<button class="btn rot" data-act="firma-loeschen">Firma löschen</button>'+
           "</div>"+
         "</div>"+
-
-        "<div>"+
-          '<div class="section"><div class="section-t">Objekte'+
-            (objekte.length?' <span class="mono">'+objekte.length+"</span>":"")+
-            '<span class="add"><button class="btn sm" data-act="objekt-neu">+ Objekt</button></span></div>'+
-            (objekte.length ? objekte.map(objektZeile).join("")
-              : '<div class="tiny muted">Kein Objekt erfasst. Ein Objekt ist ein Gebäude oder Bauvorhaben – so bleibt später nachvollziehbar, welche Angebote es je dafür gab.</div>')+
-          "</div>"+
-
-          '<div class="section"><div class="section-t">Vorgänge'+
-            '<span class="add"><button class="btn sm" data-act="vorgang-fuer-firma">+ Vorgang</button></span></div>'+
-            (vorgaenge.length ? vorgaenge.map(v =>
-              '<button class="vcard'+(dringlichkeit(v)?" u-"+dringlichkeit(v):"")+(v.kontaktweg==="Passiv"?" passiv":"")+'" data-vorgang="'+v.id+'">'+
-                '<span class="v-titel">'+esc(v.titel||"Ohne Titel")+"</span>"+
-                '<span class="v-meta"><span class="chip">'+esc(stufenName(v.stufe))+"</span>"+
-                (wvNaechste(v)?'<span class="chip">'+esc(fmtDatum(wvNaechste(v).datum))+"</span>":"")+"</span></button>").join("")
-              : '<div class="tiny muted">Noch kein Vorgang.</div>')+
-          "</div>"+
-
-          '<div class="section"><div class="section-t">Briefe (Track Passiv)'+
-            '<span class="add"><button class="btn sm" data-act="brief-vermerk">Brief verschickt</button></span></div>'+
-            ((x.briefe||[]).length ? x.briefe.map(b =>
-              '<div class="tiny" style="padding:4px 0">Brief verschickt am <span class="mono">'+esc(fmtDatum(b.datum))+"</span>"+
-              (b.anlass?" · "+esc(b.anlass):"")+"</div>").join("")
-              : '<div class="tiny muted">Massenversand legt keinen Vorgang an – nur diesen Vermerk. Ein Vorgang entsteht erst, wenn jemand reagiert.</div>')+
-          "</div>"+
-        "</div>"+
-
       "</div></div>"+
-      '<div class="drawer-foot">'+
+      '<div class="fx-body">'+
+        '<aside class="fx-side">'+fKontaktKarte(x)+fEinordnungKarte(x)+"</aside>"+
+        '<div class="fx-main">'+
+          fJetzt(x, vorgaenge)+fVorgaengeObjekte(x, objekte, vorgaenge)+fNotizKarte(nt)+fVerlauf(x, vorgaenge)+
+        "</div>"+
+      "</div>"+
+      '<div class="fx-foot">'+
         '<button class="btn primary" data-act="firma-speichern">Speichern</button>'+
         '<button class="btn ghost" data-close="1">Abbrechen</button>'+
-        '<div style="flex:1"></div>'+
-        '<button class="btn danger" data-act="firma-loeschen">Löschen</button>'+
       "</div>"+
     "</div>", { firmaId:id }, true);
 }
@@ -4329,6 +5082,10 @@ function firmaFelderLesen(x){
     quelle:"#fQuelle", ansprechpartner:"#fAP", telefon:"#fTel", email:"#fMail", website:"#fWeb",
     strasse:"#fStr", plz:"#fPlz", ort:"#fOrt", notiz:"#fNotiz" };
   for (const k in map){ const v=g(map[k]); if(v!==undefined) x[k]=v; }
+  /* B25: Import-Daten stehen eingeklappt ausserhalb des Notizfelds */
+  const imp = $("#fNotizImport");
+  if(imp && $("#fNotiz"))
+    x.notiz = [String(x.notiz||"").trim(), imp.value.trim()].filter(Boolean).join("\n");
 }
 
 /* ---------- 10. Import: CSV-Datei oder Einfügen aus Excel ----- */
@@ -4921,22 +5678,43 @@ function empfaengerWahl(liste, titel, weiter){
   const n = new Map(ZIELGRUPPEN.map(z=>[z,0]));
   for(const f of liste) n.set(zielgruppe(f), n.get(zielgruppe(f))+1);
   const da = ZIELGRUPPEN.filter(z=>n.get(z));
+  /* B28: Kunden und „Kein Interesse" sind vorab abgewählt – bestehende
+     Kunden bekommen keinen Akquise-Brief. Wer kuerzlich schon einen Brief
+     bekommen hat, wird nicht doppelt angeschrieben. */
+  const zuletzt = f => (f.briefe||[]).reduce((m,b)=>(b.datum||"") > m ? b.datum : m, "");
+  const kuerzlich = tage => liste.filter(f => { const d = zuletzt(f); return d && tageBis(d) !== null && -tageBis(d) < tage; }).length;
+  const hinweis = { "Kunde":"nur mit eigenem Anlass, z.B. Saisonstart", "Ehemaliger Kunde":"eigener Text: „Kommen Sie zurück“",
+    "Interessent (Angebot erhalten)":"an das frühere Angebot anknüpfen" };
   layerZeigen('<div class="modal"><div class="drawer-head"><h2>'+esc(titel)+" – wen anschreiben?</h2></div>"+
     '<div class="drawer-body">'+
-      '<div class="hint" style="margin-bottom:12px">'+liste.length+" Firmen in der Auswahl. Wähle die Gruppen, die diesen Brief bekommen.</div>"+
+      '<div class="hint" style="margin-bottom:12px">'+liste.length+" Firmen in der Auswahl. Wähle die Gruppen, die diesen Brief bekommen. "+
+        "Die Spalte „Zielgruppe“ steht in der Datei – damit setzt Word je Gruppe den passenden Text ein.</div>"+
       da.map(z=>'<label style="display:flex;gap:8px;align-items:center;padding:6px 0;cursor:pointer">'+
-        '<input type="checkbox" data-zg="'+esc(z)+'"'+(z==="Kein Interesse / Verloren"?"":" checked")+">"+
-        "<span>"+esc(z)+'</span><span class="muted tiny">('+n.get(z)+")</span></label>").join("")+
+        '<input type="checkbox" data-zg="'+esc(z)+'"'+(z==="Kein Interesse / Verloren"||z==="Kunde"?"":" checked")+">"+
+        "<span>"+esc(z)+'</span><span class="muted tiny">('+n.get(z)+")"+(hinweis[z]?" · "+esc(hinweis[z]):"")+"</span></label>").join("")+
+      '<label style="display:flex;gap:8px;align-items:center;margin-top:12px;cursor:pointer">'+
+        '<input type="checkbox" id="zgDoppelt" checked>'+
+        '<span>Nicht anschreiben, wer in den letzten <input type="number" id="zgTage" value="90" min="1" max="730" style="width:62px;padding:2px 6px;display:inline-block"> Tagen schon einen Brief bekam '+
+        '<span class="muted tiny" id="zgDoppeltN">('+kuerzlich(90)+")</span></span></label>"+
       '<label style="display:block;margin-top:14px" class="tiny">Anlass für den Brief-Vermerk (optional)'+
         '<input type="text" id="zgAnlass" placeholder="z.B. Saisonstart Glasreinigung" style="width:100%;margin-top:4px"></label>'+
     "</div>"+
     '<div class="drawer-foot"><button class="btn primary" id="zgOk">Weiter</button>'+
     '<button class="btn ghost" data-close="1">Abbrechen</button></div></div>', {}, true);
+  const tageEl = $("#zgTage");
+  if(tageEl) tageEl.oninput = () => { const z = $("#zgDoppeltN"); if(z) z.textContent = "("+kuerzlich(Number(tageEl.value)||0)+")"; };
   $("#zgOk").onclick = () => {
     const gruppen = new Set([...document.querySelectorAll("[data-zg]")].filter(x=>x.checked).map(x=>x.getAttribute("data-zg")));
     const anlass = ($("#zgAnlass").value||"").trim();
-    const gewaehlt = liste.filter(f=>gruppen.has(zielgruppe(f)));
+    let gewaehlt = liste.filter(f=>gruppen.has(zielgruppe(f)));
     if(!gewaehlt.length){ toast("Keine Gruppe gewählt"); return; }
+    if(($("#zgDoppelt")||{}).checked){
+      const tage = Number((tageEl||{}).value) || 0;
+      const vorher = gewaehlt.length;
+      gewaehlt = gewaehlt.filter(f => { const d = zuletzt(f); return !(d && tageBis(d) !== null && -tageBis(d) < tage); });
+      if(vorher > gewaehlt.length) toast((vorher-gewaehlt.length)+" kürzlich angeschriebene ausgelassen");
+      if(!gewaehlt.length){ toast("Alle gewählten wurden kürzlich schon angeschrieben"); return; }
+    }
     layerSchliessen();
     weiter(gewaehlt, anlass);
   };
@@ -5350,29 +6128,49 @@ function digitalpostExport2(ids, wahl){
 
 /* ---------- 12. Auswertungen ---------------------------------- */
 function renderZahlen(){
-  const V = Store.data.vorgaenge, F = Store.data.firmen;
+  /* B28: Angebote und Kaltakquise getrennt auswerten. Ein „kein Interesse"
+     am Telefon ist kein verlorenes Angebot. */
+  const ALLE = Store.data.vorgaenge, F = Store.data.firmen;
+  const V = ALLE.filter(v=>istDeal(v));
+  const AK = ALLE.filter(v=>!istDeal(v));
   const offen = V.filter(v=>!v.ergebnis);
   const gewonnen = V.filter(v=>v.ergebnis==="gewonnen");
   const verloren = V.filter(v=>v.ergebnis==="verloren");
   const ueberfaellig = offen.filter(v=>{ const w=wvNaechste(v); return w && tageBis(w.datum)<0; });
+  const ohneTermin = offen.filter(v=>!wvNaechste(v));
   const quote = (gewonnen.length+verloren.length) ? Math.round(gewonnen.length/(gewonnen.length+verloren.length)*100) : null;
 
   const kpi = (v,l,cls) => '<div class="kpi '+(cls||"")+'"><div class="v">'+v+'</div><div class="l">'+esc(l)+"</div></div>";
 
-  let h = '<div class="kpis">'+
-    kpi(F.length,"Firmen")+
-    kpi(offen.length,"Offene Vorgänge")+
+  let h = '<h3 style="margin:4px 0 10px">Angebote</h3><div class="kpis">'+
+    kpi(offen.length,"Offene Angebote")+
     kpi(ueberfaellig.length,"Überfällig", ueberfaellig.length?"crit":"")+
+    kpi(ohneTermin.length,"Ohne Termin", ohneTermin.length?"crit":"")+
     kpi(gewonnen.length,"Aufträge","ok")+
     kpi(verloren.length,"Absagen")+
     kpi(quote===null?"–":quote+"%","Trefferquote")+
   "</div>";
 
+  /* Kaltakquise */
+  const akOffen = AK.filter(v=>!v.ergebnis);
+  const akKein = AK.filter(v=>v.ergebnis==="verloren").length;
+  const ausAkq = V.filter(v=>v.herkunft==="Kaltakquise").length;
+  const anrufe = Store.data.aktivitaeten.filter(a=>a.typ==="Anruf").length;
+  h += '<h3 style="margin:22px 0 10px">Kaltakquise</h3><div class="kpis">'+
+    kpi(F.length,"Firmen")+
+    kpi(akOffen.length,"Offene Kontakte")+
+    kpi(anrufe,"Anrufe erfasst")+
+    kpi(akKein,"Kein Interesse")+
+    kpi(ausAkq,"→ Angebot gewünscht","ok")+
+  "</div>";
+
   /* Verteilung über die Stufen */
-  h += '<div class="panel" style="margin-top:18px"><div class="panel-head"><h3>Vorgänge je Stufe</h3></div><div class="panel-body">';
-  const max = Math.max(1, ...STUFEN.map(s=>V.filter(v=>v.stufe===s.id).length));
+  h += '<div class="panel" style="margin-top:18px"><div class="panel-head"><h3>Angebote je Stufe</h3></div><div class="panel-body">';
+  const inStufe = (v, s) => s.id === "neu" ? (!v.ergebnis && stufenIndex(v) === 0)
+    : s.id === "abschluss" ? !!v.ergebnis : (!v.ergebnis && STUFEN[stufenIndex(v)].id === s.id);
+  const max = Math.max(1, ...STUFEN.map(s=>V.filter(v=>inStufe(v,s)).length));
   for (const s of STUFEN){
-    const n = V.filter(v=>v.stufe===s.id).length;
+    const n = V.filter(v=>inStufe(v,s)).length;
     h += '<div style="display:flex;align-items:center;gap:10px;padding:4px 0">'+
       '<div class="tiny" style="flex:0 0 130px;color:var(--ink-2)">'+esc(s.name)+"</div>"+
       '<div style="flex:1;background:var(--surface-3);height:16px;border-radius:3px;overflow:hidden">'+
@@ -5385,7 +6183,7 @@ function renderZahlen(){
   const gruende = {};
   verloren.forEach(v=>{ if(v.absagegrund) gruende[v.absagegrund]=(gruende[v.absagegrund]||0)+1; });
   const gListe = Object.entries(gruende).sort((a,b)=>b[1]-a[1]);
-  h += '<div class="panel" style="margin-top:18px"><div class="panel-head"><h3>Absagegründe</h3>'+
+  h += '<div class="panel" style="margin-top:18px"><div class="panel-head"><h3>Warum Angebote nichts wurden</h3>'+
     '<span class="tiny muted" style="margin-left:auto">aussagekräftig ab ca. 20 Einträgen</span></div><div class="panel-body">'+
     (gListe.length ? gListe.map(([g,n])=>
       '<div style="display:flex;padding:5px 0;border-bottom:1px solid var(--line)"><div style="flex:1;font-size:13.5px">'+esc(g)+
@@ -5470,7 +6268,7 @@ function renderSetup(){
         '<div class="field"><label>Eigener Name (wird für {ich} eingesetzt)</label>'+
           '<input type="text" id="vlIch" value="'+esc(Vorlagen.aktuell().ich||"")+'"></div>'+
         '<div class="field"><label>Nachfassen standardmäßig nach … Tagen</label>'+
-          '<input type="number" id="vlTage" min="1" max="90" value="'+(Number(Vorlagen.aktuell().nachfassTage)||10)+'"></div>'+
+          '<input type="number" id="vlTage" min="1" max="90" value="'+(Number(Vorlagen.aktuell().nachfassTage)||14)+'"></div>'+
       "</div>"+
       '<div class="hint" style="margin-bottom:14px"><b>Platzhalter</b> – in geschweiften Klammern schreiben, '+
         "das Tool setzt beim Öffnen die echten Angaben ein:<br>"+
@@ -5623,7 +6421,7 @@ function vorlagenFelderLesen(){
   const d = Vorlagen.aktuell();
   const w = s => { const el = $(s); return el ? el.value : undefined; };
   const ich = w("#vlIch");   if(ich !== undefined) d.ich = ich.trim();
-  const tg  = w("#vlTage");  if(tg  !== undefined) d.nachfassTage = Math.min(90, Math.max(1, Number(tg)||10));
+  const tg  = w("#vlTage");  if(tg  !== undefined) d.nachfassTage = Math.min(90, Math.max(1, Number(tg)||14));
   if(!Array.isArray(d.stufen)) d.stufen = Vorlagen.standard().stufen;
   for(let i=0;i<3;i++){
     const s = d.stufen[i] || (d.stufen[i] = Vorlagen.standard().stufen[i]);
@@ -5739,7 +6537,7 @@ function bestaetigen(titel, text, knopf, aktion){
   $("#okBtn").onclick = () => { layerSchliessen(); aktion(); };
 }
 
-function abschlussDialog(v, art){
+function abschlussDialog(v, art, vorwahl){
   AutoMeldung = "";   /* Nachfass-Hinweise sind mit dem Abschluss hinfällig */
   if(art==="gewonnen"){
     delete v.entwurf;
@@ -5752,16 +6550,22 @@ function abschlussDialog(v, art){
     toast("Auftrag gebucht · 90-Tage-Check und Empfehlungstermin gesetzt");
     return;
   }
+  /* B28: Grund ist Pflicht, dazu optional ein Satz, was genau war – damit
+     spaeter nachvollziehbar bleibt, warum das Angebot nichts wurde. */
   layerZeigen('<div class="modal"><div class="drawer-head"><h2>Absage buchen</h2></div>'+
-    '<div class="drawer-body"><div class="field"><label>Warum</label><select id="grund">'+
-      optionen(ABSAGEGRUENDE, "", "— bitte wählen —")+"</select></div>"+
+    '<div class="drawer-body"><div class="field"><label>Warum haben wir den Auftrag nicht bekommen?</label><select id="grund">'+
+      optionen(ABSAGEGRUENDE, vorwahl||"", "— bitte wählen —")+"</select></div>"+
+      '<div class="field" style="margin-top:10px"><label>Was genau? (optional)</label>'+
+        '<textarea id="grundText" style="min-height:60px" placeholder="z.B. Mitbewerber 12 % günstiger, Entscheidung lag beim Einkauf"></textarea></div>'+
       '<div class="hint" style="margin-top:12px">Der Vorgang verschwindet nicht: in 9 Monaten kommt er als Reaktivierung wieder hoch.</div></div>'+
     '<div class="drawer-foot"><button class="btn primary" id="okBtn">Absage buchen</button>'+
     '<button class="btn ghost" data-close="1">Abbrechen</button></div></div>', {}, true);
   $("#okBtn").onclick = () => {
     const g = $("#grund").value;
     if(!g){ toast("Bitte einen Grund wählen"); return; }
+    const gt = (($("#grundText")||{}).value||"").trim();
     delete v.entwurf;
+    neueAktivitaet({ vorgangId:v.id, typ:"Notiz", datum:ISO(new Date()), text:"Absage: "+g+(gt ? " – "+gt : "") });
     v.ergebnis="verloren"; v.stufe="abschluss"; v.absagegrund=g;
     abschlussWvAbhaken(v);
     wvSetzen(v, plusMonate(9), "Nach Absage wieder ansprechen");
@@ -5773,7 +6577,7 @@ function abschlussDialog(v, art){
 /* ---------- 15. Ereignisse ------------------------------------ */
 document.addEventListener("click", e => {
   if(e.target.closest("a[href]")) return;   /* echte Links normal durchlassen */
-  const t = e.target.closest("[data-go],[data-act],[data-vorgang],[data-firma],[data-close],[data-ansicht],[data-wv-done],[data-wv-del],[data-akt-del],[data-akt-auf],[data-objekt],[data-objekt-del],[data-sort],[data-dub-del],[data-dub-merge],[data-dub-do],[data-dub-skip],[data-dub-zurueck],[data-dub-reset],[data-firma-del],[data-fedit],[data-weg-um],[data-mehr],[data-weniger]");
+  const t = e.target.closest("[data-go],[data-act],[data-vorgang],[data-firma],[data-close],[data-ansicht],[data-wv-done],[data-wv-del],[data-akt-del],[data-akt-auf],[data-objekt],[data-objekt-del],[data-sort],[data-dub-del],[data-dub-merge],[data-dub-do],[data-dub-skip],[data-dub-zurueck],[data-dub-reset],[data-firma-del],[data-fedit],[data-weg-um],[data-mehr],[data-weniger],[data-fansicht]");
   if(!t) return;
 
   /* Kontaktweg direkt in der Liste umschalten, ohne die Firma zu oeffnen. */
@@ -5795,7 +6599,10 @@ document.addEventListener("click", e => {
   if(weniger){ App.boardOffen.delete(weniger); render(); return; }
 
   const so = t.getAttribute("data-sort");
-  if(so){ if(App.firmenSort && App.firmenSort.feld===so) App.firmenSort.richtung*=-1; else App.firmenSort={feld:so,richtung:1}; render(); return; }
+  /* B28: „Vorgänge" beim ersten Klick absteigend – die meisten oben */
+  if(so){ if(App.firmenSort && App.firmenSort.feld===so) App.firmenSort.richtung*=-1; else App.firmenSort={feld:so,richtung:so==="vorgaenge"?-1:1}; render(); return; }
+  const fa = t.getAttribute("data-fansicht");
+  if(fa){ App.firmenAnsicht = fa; App.auswahl.clear(); render(); return; }
 
   const fedit = t.getAttribute("data-fedit");
   if(fedit){ feldAuswahlOeffnen(t, fedit, t.getAttribute("data-id")); return; }
@@ -5897,27 +6704,105 @@ document.addEventListener("click", e => {
   const act = t.getAttribute("data-act");
   if(act) aktion(act, t);
 });
+/* B25: offenes ⋯-Menue schliesst bei Klick daneben */
+document.addEventListener("click", e => {
+  if(e.target.closest && e.target.closest('[data-act="vmenu"],[data-act="fmenu"]')) return;
+  document.querySelectorAll(".fx-menu:not(.hidden)").forEach(m => {
+    if(!m.contains(e.target)) m.classList.add("hidden");
+  });
+}, true);
 
 function aktion(act, el){
   const V = () => DB.vorgang(LayerCtx.vorgangId);
   const F = () => DB.firma(LayerCtx.firmaId);
 
   switch(act){
+    /* --- B25: Fenster im neuen Aufbau --- */
+    case "vmenu": { const m=$("#vMenu"); if(m) m.classList.toggle("hidden"); return; }
+    case "fmenu": { const m=$("#fMenu"); if(m) m.classList.toggle("hidden"); return; }
+    case "vtab":  { vTabSetzen(el.getAttribute("data-tab")||"notiz"); const t=$("#aText"); if(t && !t.closest(".hidden")) t.focus(); return; }
+    case "stufe-setzen": {
+      const v = V(); if(!v) return;
+      vorgangFelderLesen(v);
+      const neu = el.getAttribute("data-stufe");
+      if(!neu || neu === v.stufe) return;
+      const alt = v.stufe; v.stufe = neu;
+      if(v.ergebnis){ abschlussTermineAbhaken(v); v.ergebnis=""; v.absagegrund=""; }
+      const sm = stufenAutomatik(v, alt);
+      Store.save(); vorgangOeffnen(v.id); render();
+      toast("Stufe: "+stufenName(neu)+(sm ? " · "+sm : "")); return;
+    }
+    case "wv-eigen": {
+      const v = V(); if(!v) return;
+      vorgangFelderLesen(v);
+      const d = ($("#wvDatum")||{}).value || "";
+      const an = (($("#wvAnlass")||{}).value || "").trim();
+      if(!d){ toast("Bitte ein Datum wählen"); return; }
+      wvSetzen(v, d, an || "Wiedervorlage");
+      App.vTab = "notiz";
+      Store.save(); vorgangOeffnen(v.id); render();
+      toast("Wiedervorlage am "+fmtDatum(d)); return;
+    }
+    case "zur-firma": {
+      const v = V(); if(!v) return;
+      vorgangFelderLesen(v);
+      if(!v.firmaId){ toast("Bitte erst eine Firma wählen"); return; }
+      if(v.entwurf){ toast("Bitte den Vorgang erst speichern"); return; }
+      Store.save(); firmaOeffnen(v.firmaId); return;
+    }
+    case "fkontakt-edit": {
+      const a=$("#fKontaktLesen"), b=$("#fKontaktEdit");
+      if(a && b){ a.classList.add("hidden"); b.classList.remove("hidden"); const n=$("#fAP"); if(n) n.focus(); }
+      if(el && el.classList.contains("linkbtn") && el.textContent==="Bearbeiten") el.classList.add("hidden");
+      return;
+    }
+
     /* --- Vorgang --- */
     case "vorgang-neu": {
       if(!Store.data.firmen.length){
         toast("Erst eine Firma anlegen – ein Vorgang hängt immer an einer Firma");
         go("firmen"); return;
       }
-      const v = neuerVorgang({ firmaId:"", titel:"", entwurf:true });
+      /* B28: Aus der Pipeline entsteht immer ein Angebot */
+      const v = neuerVorgang({ firmaId:"", titel:"", entwurf:true,
+        herkunft:"Eingehende Anfrage", anfrageAm:ISO(new Date()) });
       vorgangOeffnen(v.id); return;
     }
-    case "vorgang-fuer-firma": {
+    case "vorgang-fuer-firma": case "angebot-fuer-firma": {
       const x = F(); firmaFelderLesen(x);
-      Store.save(); layerSchliessen(); render();
-      const v = neuerVorgang({ firmaId:x.id, kontaktweg:x.kontaktweg||"Aktiv", titel:"", entwurf:true });
-      vorgangOeffnen(v.id); return;
+      const angebot = act === "angebot-fuer-firma";
+      const anlegen = () => {
+        Store.save(); layerSchliessen(); render();
+        const v = neuerVorgang(Object.assign(
+          { firmaId:x.id, kontaktweg:x.kontaktweg||"Aktiv", titel:"", entwurf:true },
+          angebot ? { anfrageAm:ISO(new Date()),
+                      herkunft: zielgruppe(x)==="Kunde" ? "Bestandskunde" : "Eingehende Anfrage" } : {}));
+        vorgangOeffnen(v.id);
+      };
+      /* B28: Kaltakquise bei einem aktuellen Kunden nur nach Rueckfrage */
+      if(!angebot && zielgruppe(x) === "Kunde"){
+        bestaetigen("Aktueller Kunde", "„"+(x.name||"")+"“ ist Kunde. Kaltakquise ist hier nicht vorgesehen – "+
+          "für einen weiteren Auftrag besser „+ Angebot“ nehmen. Trotzdem einen Akquise-Kontakt anlegen?",
+          "Trotzdem anlegen", anlegen);
+        return;
+      }
+      anlegen(); return;
     }
+    case "akq-angebot": {
+      /* B28: Kaltakquise-Kontakt will ein Angebot → in die Pipeline */
+      const v = V(); if(!v) return;
+      vorgangFelderLesen(v);
+      delete v.entwurf;
+      if(!v.anfrageAm) v.anfrageAm = ISO(new Date());
+      if(v.stufe !== "besichtigung") v.stufe = "neu";
+      if(!(v.titel||"").trim() || /^(kaltakquise|ohne titel)/i.test(v.titel)) v.titel = "Angebot "+(DB.firmaName(v.firmaId)||"");
+      for (const w of (v.wiedervorlagen||[])) if(!w.erledigt) w.erledigt = true;
+      wvSetzen(v, plusTage(3), "Angebot erstellen");
+      neueAktivitaet({ vorgangId:v.id, typ:"Notiz", datum:ISO(new Date()), text:"Aus der Kaltakquise: Angebot gewünscht – in die Pipeline übernommen" });
+      Store.save(); vorgangOeffnen(v.id); render();
+      toast("In die Pipeline übernommen · „Angebot erstellen“ in 3 Tagen"); return;
+    }
+    case "absage-keine-rm": { const v=V(); vorgangFelderLesen(v); abschlussDialog(v,"verloren","keine Rückmeldung"); return; }
     case "vorgang-speichern": {
       const v = V();
       vorgangFelderLesen(v);            /* Automatik laeuft dort mit */
@@ -6499,7 +7384,8 @@ document.addEventListener("drop", e => {
 let ziehId = null;
 document.addEventListener("dragstart", e => {
   const c = e.target.closest("[data-vorgang]");
-  if(c){ ziehId = c.getAttribute("data-vorgang"); e.dataTransfer.effectAllowed="move"; }
+  if(c){ ziehId = c.getAttribute("data-vorgang"); e.dataTransfer.effectAllowed="move";
+    if(c.closest("#board")) dropleisteZeigen(); }
 });
 document.addEventListener("dragover", e => {
   const col = e.target.closest(".col"); if(!col || !ziehId) return;
@@ -6521,6 +7407,31 @@ document.addEventListener("drop", e => {
   Store.save(); render();
   if(sm) toast(sm);
 });
+
+/* B25: Beim Ziehen erscheint unten eine Leiste „Auftrag / Absage“ –
+   so schliesst man ab, ohne dass dafuer eine eigene Spalte noetig ist. */
+function dropleisteZeigen(){
+  if($("#dropLeiste")) return;
+  const d = document.createElement("div");
+  d.id = "dropLeiste"; d.className = "dropleiste";
+  d.innerHTML = '<div class="won" data-drop="gewonnen">Auftrag</div><div class="lost" data-drop="verloren">Absage</div>';
+  document.body.appendChild(d);
+}
+function dropleisteWeg(){ const d = $("#dropLeiste"); if(d) d.remove(); }
+document.addEventListener("dragover", e => {
+  const z = e.target.closest && e.target.closest("[data-drop]"); if(!z || !ziehId) return;
+  e.preventDefault(); z.classList.add("ueber");
+});
+document.addEventListener("dragleave", e => {
+  const z = e.target.closest && e.target.closest("[data-drop]"); if(z) z.classList.remove("ueber");
+});
+document.addEventListener("drop", e => {
+  const z = e.target.closest && e.target.closest("[data-drop]"); if(!z || !ziehId) return;
+  e.preventDefault();
+  const v = DB.vorgang(ziehId); ziehId = null; dropleisteWeg();
+  if(v) abschlussDialog(v, z.getAttribute("data-drop"));
+});
+document.addEventListener("dragend", () => { dropleisteWeg(); setTimeout(() => { ziehId = null; }, 0); });
 
 document.addEventListener("keydown", e => {
   if(e.key==="Escape" && $("#overlay")) layerAbbrechen();

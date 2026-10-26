@@ -2498,7 +2498,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 20.10.2026 · B29</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 26.10.2026 · B31</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -2601,6 +2601,7 @@ function render(){
   ({ pipeline:renderPipeline, firmen:renderFirmen, adressen:renderAdressen,
      zahlen:renderZahlen, setup:renderSetup })[App.seite]();
   if(typeof eingangPruefen==="function") eingangPruefen();
+  try{ if(App.seite==="pipeline") AnfrOrdner.pruefen(false); }catch(_){}   /* B31 */
 }
 
 /* ---------- 6. Pipeline --------------------------------------- */
@@ -2623,6 +2624,7 @@ function istDeal(v){
 
 function renderPipeline(){
   $("#pageActions").innerHTML =
+    '<button class="btn" data-act="anfr-oeffnen" title="Anfragen-Datei aus Outlook (Ordner Anfragen) übernehmen">Anfragen importieren</button>'+
     '<button class="btn" data-act="mail-neu">Anfrage aus E-Mail</button>'+
     '<button class="btn primary" data-act="vorgang-neu">+ Vorgang</button>';
 
@@ -2639,7 +2641,7 @@ function renderPipeline(){
 
   const seg = (id, name, n) => '<button data-ansicht="'+id+'" class="'+(App.pipelineAnsicht===id?"on":"")+'">'+
     name+' <span class="chip">'+n+"</span></button>";
-  let h = '<div id="eingangBox"></div>'+
+  let h = '<div id="anfrBox"></div><div id="eingangBox"></div>'+
     '<div class="toolbar">'+
     '<div class="seg">'+
       seg("deals","Offene Angebote",offen.length)+
@@ -5426,6 +5428,271 @@ function abgleichAusfuehren(){
   toast(geaendert+" Firmen aktualisiert · "+angelegt+" neu angelegt"+(kalt?" · "+kalt+" als Kaltakquise markiert":""));
 }
 
+/* ---------- B30: Anfragen importieren ---------------------------
+   Claude durchsucht Outlook nach Anfragen ohne Angebot und legt sie als
+   JSON in K:\KI Programme\AQT\Anfragen ab. Hier wird die Datei gelesen,
+   jede Anfrage einer vorhandenen Firma zugeordnet (oder neu angelegt)
+   und als Vorgang „Angebot zu erstellen“ in die Pipeline gestellt.
+   Schon uebernommene Anfragen erkennt AQT am Schluessel in der
+   Aktivitaet und bietet sie nicht noch einmal an. */
+let Anfr = null;
+
+function anfrImportOeffnen(){
+  layerZeigen('<div class="modal"><div class="drawer-head"><h2>Anfragen importieren</h2></div>'+
+    '<div class="drawer-body">'+
+      '<div class="hint" style="margin-bottom:12px">Die Anfragen-Datei (.json) aus dem Ordner '+
+      '<span class="mono">K:\\KI Programme\\AQT\\Anfragen</span> wählen. Vor dem Übernehmen gibt es eine Vorschau.</div>'+
+      '<input type="file" id="anfrDatei" accept=".json" multiple>'+
+    "</div>"+
+    '<div class="drawer-foot"><button class="btn primary" data-act="anfr-lesen">Weiter</button>'+
+    '<button class="btn ghost" data-close="1">Abbrechen</button></div></div>', {}, true);
+}
+
+async function anfrLesen(){
+  const dateien = [...((($("#anfrDatei")||{}).files)||[])];
+  if(!dateien.length){ toast("Bitte die Datei wählen"); return; }
+  const liste = [];
+  for(const d of dateien){
+    try{ liste.push(...anfrAusJson(await d.text())); }
+    catch(e){ toast(d.name+": kein gültiges JSON – "+e.message); return; }
+  }
+  if(!liste.length){ toast("Keine Anfragen in der Datei"); return; }
+  anfrVorbereiten(liste, dateien.length===1 ? dateien[0].name : dateien.length+" Dateien");
+  anfrZeigen();
+}
+
+function anfrAusJson(text){
+  const daten = JSON.parse(String(text).replace(/^\uFEFF/,""));
+  return Array.isArray(daten) ? daten : (daten.anfragen||[]);
+}
+
+/* Schon uebernommene Anfragen am Schluessel in den Aktivitaeten erkennen */
+function anfrSchonDa(){
+  const schonDa = new Set();
+  for(const a of Store.data.aktivitaeten){
+    const m = /\[Anfrage-Import ([^\]]+)\]/.exec(a.text||""); if(m) schonDa.add(m[1]);
+  }
+  return schonDa;
+}
+
+function anfrVorbereiten(liste, name){
+  /* B31: dieselbe Anfrage kann in mehreren Tagesdateien stehen – nur einmal */
+  const gesehen = new Set();
+  liste = liste.filter(x => !x.schluessel || (gesehen.has(x.schluessel) ? false : (gesehen.add(x.schluessel), true)));
+
+  /* Suchindex ueber alle Firmen */
+  const nachTel = new Map(), nachNamePlz = new Map(), nachName = new Map(), nachMail = new Map();
+  const add = (m,k,f) => { if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(f); };
+  for(const f of Store.data.firmen){
+    if(f.entwurf) continue;
+    add(nachTel, dubTel(f.telefon), f);
+    add(nachNamePlz, dubNorm(f.name)+"|"+String(f.plz||"").trim(), f);
+    add(nachName, dubNorm(f.name), f);
+    add(nachMail, String(f.email||"").trim().toLowerCase(), f);
+  }
+  const schonDa = anfrSchonDa();
+
+  const eintraege = liste.map(x => {
+    const e = Object.assign({ firma:"", ansprechpartner:"", email:"", telefon:"", strasse:"", plz:"", ort:"",
+      titel:"", anfrageAm:"", frist:"", notiz:"", mailText:"", schluessel:"" }, x);
+    const nameKand = nachName.get(dubNorm(e.firma)) || [];
+    const kand = []
+      .concat(nachNamePlz.get(dubNorm(e.firma)+"|"+String(e.plz||"").trim()) || [])
+      .concat(dubTel(e.telefon) ? (nachTel.get(dubTel(e.telefon)) || []) : [])
+      .concat(e.email ? (nachMail.get(String(e.email).trim().toLowerCase()) || []) : [])
+      .concat(nameKand.length <= 3 ? nameKand : []);
+    e.treffer = [...new Set(kand)];
+    e.firmaId = e.treffer.length ? e.treffer[0].id : "";
+    e.doppelt = !!(e.schluessel && schonDa.has(e.schluessel));
+    e.an = !e.doppelt;
+    return e;
+  });
+  Anfr = { eintraege, datei:name };
+}
+
+/* ---------- B31: Anfragen-Ordner merken --------------------------
+   Eine geplante Aufgabe legt jeden Werktag frueh neue Anfragen als JSON
+   in K:\KI Programme\AQT\Anfragen ab. AQT merkt sich den Ordner (File
+   System Access API, Handle in IndexedDB) und meldet in der Pipeline,
+   wie viele Anfragen dort liegen, die noch nicht uebernommen sind. Der
+   Browser fragt nach einem Neustart einmal nach der Leseerlaubnis –
+   das ist ein Klick auf „Ordner freigeben". */
+const AnfrOrdner = {
+  handle:null, geholt:false, zeit:0, laeuft:false, zustand:"", neu:[], dateien:0, fehler:"",
+  db(){
+    return new Promise((ok, err) => {
+      const r = indexedDB.open("aqt-anfragen", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("h");
+      r.onsuccess = () => ok(r.result); r.onerror = () => err(r.error);
+    });
+  },
+  async holen(){
+    if(this.geholt) return this.handle;
+    this.geholt = true;
+    try{
+      const d = await this.db();
+      this.handle = await new Promise(ok => {
+        const q = d.transaction("h").objectStore("h").get("ordner");
+        q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null);
+      });
+    }catch(_){ this.handle = null; }
+    return this.handle;
+  },
+  async merken(h){
+    this.handle = h; this.geholt = true;
+    try{
+      const d = await this.db();
+      await new Promise(ok => { const t = d.transaction("h","readwrite"); t.objectStore("h").put(h,"ordner"); t.oncomplete = ok; t.onerror = ok; });
+    }catch(_){}
+  },
+  /* Alle JSON-Dateien lesen und die noch nicht uebernommenen Anfragen sammeln */
+  async lesen(){
+    const liste = []; let n = 0;
+    for await (const eintrag of this.handle.values()){
+      if(eintrag.kind !== "file" || !/\.json$/i.test(eintrag.name)) continue;
+      try{ liste.push(...anfrAusJson(await (await eintrag.getFile()).text())); n++; }
+      catch(e){ console.warn("Anfragen-Datei unlesbar:", eintrag.name, e); }
+    }
+    const schonDa = anfrSchonDa(), gesehen = new Set();
+    this.neu = liste.filter(x => x.schluessel && !schonDa.has(x.schluessel) && !gesehen.has(x.schluessel) && (gesehen.add(x.schluessel), true));
+    this.dateien = n;
+  },
+  async pruefen(erzwingen){
+    if(this.laeuft) return;
+    if(!erzwingen && Date.now() - this.zeit < 60000){ anfrOrdnerRendern(); return; }
+    this.laeuft = true;
+    try{
+      if(!window.showDirectoryPicker){ this.zustand = "geht-nicht"; return; }
+      const h = await this.holen();
+      if(!h){ this.zustand = "kein-ordner"; return; }
+      const p = await h.queryPermission({ mode:"read" });
+      if(p !== "granted"){ this.zustand = "erlauben"; return; }
+      await this.lesen();
+      this.zustand = "ok"; this.fehler = "";
+      this.zeit = Date.now();
+    }catch(e){
+      this.zustand = "fehler"; this.fehler = e.message || String(e);
+    }finally{
+      this.laeuft = false;
+      anfrOrdnerRendern();
+    }
+  }
+};
+
+function anfrOrdnerRendern(){
+  const box = $("#anfrBox"); if(!box) return;
+  const z = AnfrOrdner.zustand, n = AnfrOrdner.neu.length;
+  if(z === "geht-nicht" || z === ""){ box.innerHTML = ""; return; }
+  if(z === "kein-ordner"){
+    box.innerHTML = '<div class="tiny muted" style="margin-bottom:12px">Anfragen aus Outlook automatisch anzeigen: '+
+      '<button class="linkish" data-act="anfr-ordner-waehlen">Ordner „Anfragen“ verbinden</button></div>';
+    return;
+  }
+  if(z === "erlauben"){
+    box.innerHTML = '<div class="tiny muted" style="margin-bottom:12px">Anfragen aus Outlook: '+
+      '<button class="linkish" data-act="anfr-erlauben">Ordner freigeben</button> (einmal pro Browser-Start)</div>';
+    return;
+  }
+  if(z === "fehler"){
+    box.innerHTML = '<div class="tiny" style="margin-bottom:12px;color:var(--crit)">Anfragen-Ordner nicht lesbar: '+esc(AnfrOrdner.fehler)+
+      ' · <button class="linkish" data-act="anfr-ordner-waehlen">neu verbinden</button></div>';
+    return;
+  }
+  if(!n){
+    box.innerHTML = '<div class="tiny muted" style="margin-bottom:12px">Anfragen aus Outlook: nichts Neues · '+
+      '<button class="linkish" data-act="anfr-ordner-neu">nachsehen</button></div>';
+    return;
+  }
+  box.innerHTML =
+    '<div class="panel" style="margin-bottom:16px"><div class="panel-head">'+
+      '<h3>Neue Anfragen aus Outlook <span class="chip crit">'+n+"</span></h3>"+
+      '<div style="margin-left:auto;display:flex;gap:9px;align-items:center">'+
+        '<button class="btn primary sm" data-act="anfr-ordner-vorschau">Ansehen &amp; übernehmen</button>'+
+        '<button class="btn sm ghost" data-act="anfr-ordner-neu">Aktualisieren</button></div></div>'+
+      '<div class="panel-body tiny muted">'+
+        AnfrOrdner.neu.slice(0,6).map(x => esc(x.firma||"")+(x.titel?" – "+esc(x.titel):"")).join("<br>")+
+        (n>6 ? "<br>… und "+(n-6)+" weitere" : "")+
+      "</div></div>";
+}
+
+function anfrZeigen(){
+  const E = Anfr.eintraege;
+  const doppelt = E.filter(e=>e.doppelt).length;
+  let h = '<div class="modal wide"><div class="drawer-head"><h2>Anfragen importieren – Vorschau</h2>'+
+    '<div class="tiny muted">'+esc(Anfr.datei)+" · "+E.length+" Anfragen"+
+    (doppelt?" · "+doppelt+" schon in AQT (abgewählt)":"")+"</div></div>"+
+    '<div class="drawer-body" style="overflow:auto;flex:1">'+
+    '<div class="hint" style="margin-bottom:10px">Angehakte Anfragen kommen als Vorgang in die Spalte '+
+    "„Angebot zu erstellen“. Gibt es die Firma schon, hängt der Vorgang dort – sonst wird sie neu angelegt "+
+    "(Quelle „Eingehende Anfrage“). Vorher wird automatisch eine Sicherung heruntergeladen.</div>"+
+    '<table class="data" style="width:100%"><thead><tr><th></th><th>Anfrage</th><th>Eingang</th><th>Frist</th><th>Firma in AQT</th></tr></thead><tbody>';
+  for(let i=0;i<E.length;i++){
+    const e = E[i];
+    let ziel;
+    if(e.treffer.length){
+      ziel = '<select data-anfr-firma="'+i+'" style="max-width:300px">'+
+        e.treffer.map(f=>'<option value="'+esc(f.id)+'"'+(f.id===e.firmaId?" selected":"")+">"+
+          esc(f.name+" – "+[f.plz,f.ort].filter(Boolean).join(" "))+"</option>").join("")+
+        '<option value=""'+(e.firmaId?"":" selected")+">— neu anlegen</option></select>";
+    } else {
+      ziel = '<span class="tiny">neu anlegen</span>';
+    }
+    h += "<tr"+(e.doppelt?' style="opacity:.5"':"")+">"+
+      '<td><input type="checkbox" data-anfr-an="'+i+'"'+(e.an?" checked":"")+"></td>"+
+      '<td><div class="cellname">'+esc(e.firma)+"</div>"+
+        '<div class="tiny muted">'+esc(e.titel)+(e.doppelt?" · schon übernommen":"")+"</div></td>"+
+      '<td class="tiny">'+esc(fmtDatum(e.anfrageAm))+"</td>"+
+      '<td class="tiny">'+esc(e.frist?fmtDatum(e.frist):"")+"</td>"+
+      "<td>"+ziel+"</td></tr>";
+  }
+  h += "</tbody></table></div>"+
+    '<div class="drawer-foot"><button class="btn primary" data-act="anfr-los">Übernehmen</button>'+
+    '<button class="btn ghost" data-close="1">Abbrechen</button></div></div>';
+  layerZeigen(h, {}, true);
+}
+document.addEventListener("change", e => {
+  if(!Anfr || !e.target.getAttribute) return;
+  const a = e.target.getAttribute("data-anfr-an");
+  if(a!=null){ Anfr.eintraege[+a].an = e.target.checked; return; }
+  const f = e.target.getAttribute("data-anfr-firma");
+  if(f!=null){ Anfr.eintraege[+f].firmaId = e.target.value; }
+});
+
+function anfrAusfuehren(){
+  const E = Anfr.eintraege.filter(e=>e.an);
+  if(!E.length){ toast("Keine Anfrage angehakt"); return; }
+  sicherungHerunterladen("vor-anfragen-import");
+  let neuF = 0;
+  for(const e of E){
+    let f = e.firmaId ? DB.firma(e.firmaId) : null;
+    if(!f){
+      f = neueFirma({ name:e.firma, strasse:e.strasse, plz:e.plz, ort:e.ort, telefon:e.telefon,
+        email:e.email, ansprechpartner:e.ansprechpartner, kontaktweg:"Aktiv",
+        status:"Interessent", quelle:"Eingehende Anfrage" });
+      neuF++;
+    }
+    const v = neuerVorgang({ firmaId:f.id, titel:e.titel||("Angebot "+f.name), stufe:"neu",
+      kontaktweg:"Aktiv", herkunft: zielgruppe(f)==="Kunde" ? "Bestandskunde" : "Eingehende Anfrage",
+      anfrageAm:e.anfrageAm||ISO(new Date()), frist:e.frist||"", notiz:e.notiz||"", mailText:e.mailText||"" });
+    if(e.frist){
+      let wvTag = plusTage(-3, e.frist);
+      if(tageBis(wvTag) < 1) wvTag = plusTage(1);
+      wvSetzen(v, wvTag, "Angebot vor Frist "+fmtDatum(e.frist)+" abgeben");
+    } else {
+      wvSetzen(v, plusTage(2), "Anfrage bearbeiten");
+    }
+    neueAktivitaet({ vorgangId:v.id, typ:"E-Mail", datum:e.anfrageAm||ISO(new Date()),
+      text:"Anfrage aus Outlook übernommen"+(e.ansprechpartner?"\nAnsprechpartner: "+e.ansprechpartner:"")+
+        (e.email?"\nE-Mail: "+e.email:"")+(e.telefon?"\nTelefon: "+e.telefon:"")+
+        (e.schluessel?"\n[Anfrage-Import "+e.schluessel+"]":"") });
+  }
+  Anfr = null;
+  AnfrOrdner.zeit = 0;      /* Hinweis in der Pipeline neu zaehlen */
+  layerSchliessen();
+  Store.save(); render();
+  toast(E.length+" Anfragen in die Pipeline übernommen"+(neuF?" · "+neuF+" Firmen neu angelegt":""));
+}
+
 /* Aus CSV wie aus xlsx kommt dieselbe Zeilenstruktur an */
 function zeilenUebernehmen(zeilen){
   Import.kopf   = zeilen[0].map(s=>String(s).trim());
@@ -7097,6 +7364,28 @@ function aktion(act, el){
     case "abgl-oeffnen": { abgleichListenOeffnen(); return; }
     case "abgl-lesen":   { abgleichLesen(); return; }
     case "abgl-los":     { abgleichAusfuehren(); return; }
+    case "anfr-oeffnen": { anfrImportOeffnen(); return; }
+    case "anfr-lesen":   { anfrLesen(); return; }
+    case "anfr-los":     { anfrAusfuehren(); return; }
+    case "anfr-ordner-waehlen": {
+      window.showDirectoryPicker({ id:"aqt-anfragen", mode:"read" })
+        .then(h => AnfrOrdner.merken(h)).then(() => AnfrOrdner.pruefen(true))
+        .catch(e => { if(e && e.name!=="AbortError") toast("Ordner konnte nicht verbunden werden: "+e.message); });
+      return;
+    }
+    case "anfr-erlauben": {
+      if(!AnfrOrdner.handle) return;
+      AnfrOrdner.handle.requestPermission({ mode:"read" })
+        .then(p => { if(p==="granted") AnfrOrdner.pruefen(true); else toast("Ohne Freigabe kann AQT den Ordner nicht lesen"); })
+        .catch(e => toast(e.message));
+      return;
+    }
+    case "anfr-ordner-neu":     { AnfrOrdner.pruefen(true); return; }
+    case "anfr-ordner-vorschau": {
+      if(!AnfrOrdner.neu.length) return;
+      anfrVorbereiten(AnfrOrdner.neu.slice(), "Ordner Anfragen ("+AnfrOrdner.dateien+" Dateien)");
+      anfrZeigen(); return;
+    }
     case "dub-pruefen": { App.dubDetail = false; App.dubS = null; dubSammelOeffnen(); return; }
     /* --- Dubletten-Sammelansicht --- */
     case "dubs-topf":   { App.dubS.topf = el.getAttribute("data-wert"); App.dubS.seite = 0; App.dubS._gleicheSeite = false; dubSammelZeigen(); return; }

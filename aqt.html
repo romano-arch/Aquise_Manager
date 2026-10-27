@@ -2498,7 +2498,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 26.10.2026 · B31</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 27.10.2026 · B34</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -2602,6 +2602,7 @@ function render(){
      zahlen:renderZahlen, setup:renderSetup })[App.seite]();
   if(typeof eingangPruefen==="function") eingangPruefen();
   try{ if(App.seite==="pipeline") AnfrOrdner.pruefen(false); }catch(_){}   /* B31 */
+  try{ if(App.seite==="pipeline") NfExport.schreiben(false); }catch(_){}   /* B32 */
 }
 
 /* ---------- 6. Pipeline --------------------------------------- */
@@ -2641,7 +2642,7 @@ function renderPipeline(){
 
   const seg = (id, name, n) => '<button data-ansicht="'+id+'" class="'+(App.pipelineAnsicht===id?"on":"")+'">'+
     name+' <span class="chip">'+n+"</span></button>";
-  let h = '<div id="anfrBox"></div><div id="eingangBox"></div>'+
+  let h = '<div id="anfrBox"></div><div id="nfExportBox"></div><div id="eingangBox"></div>'+
     '<div class="toolbar">'+
     '<div class="seg">'+
       seg("deals","Offene Angebote",offen.length)+
@@ -5438,6 +5439,7 @@ function abgleichAusfuehren(){
 let Anfr = null;
 
 function anfrImportOeffnen(){
+  AnfrIgnoriert.laden();   /* B34: bis die Datei gewaehlt ist, ist die Liste da */
   layerZeigen('<div class="modal"><div class="drawer-head"><h2>Anfragen importieren</h2></div>'+
     '<div class="drawer-body">'+
       '<div class="hint" style="margin-bottom:12px">Die Anfragen-Datei (.json) aus dem Ordner '+
@@ -5466,6 +5468,40 @@ function anfrAusJson(text){
   return Array.isArray(daten) ? daten : (daten.anfragen||[]);
 }
 
+/* ---------- B34: Anfragen dauerhaft ausblenden --------------------
+   „ausblenden" in der Import-Vorschau merkt sich den Schluessel in
+   aqt_einstellungen unter "anfr_ignoriert" (zusaetzlich im Browser).
+   Die Anfrage taucht dann weder im Anfragen-Ordner-Hinweis noch beim
+   manuellen Import wieder auf. Firma/Titel/Datum werden mitgespeichert,
+   damit man spaeter nachsehen kann, was ausgeblendet wurde. */
+const AnfrIgnoriert = {
+  liste: null, set: new Set(),
+  async laden(){
+    if(this.liste) return;
+    let l = [];
+    try{ l = JSON.parse(localStorage.getItem("aqt.anfrignoriert") || "[]"); }catch(_){}
+    if(Store.backend.id==="supabase" && Auth.eingeloggt()){
+      try{
+        const alle = await SB.einstellungenLaden();
+        if(Array.isArray(alle.anfr_ignoriert)) l = alle.anfr_ignoriert;
+      }catch(e){ console.warn("anfr_ignoriert nicht geladen:", e.message||e); }
+    }
+    this.liste = l; this.set = new Set(l.map(x => x.schluessel));
+  },
+  ist(schluessel){ return !!schluessel && this.set.has(schluessel); },
+  async merken(e){
+    if(!this.liste) this.liste = [];
+    if(!e.schluessel || this.set.has(e.schluessel)) return;
+    this.liste.push({ schluessel:e.schluessel, firma:e.firma||"", titel:e.titel||"", am:ISO(new Date()) });
+    this.set.add(e.schluessel);
+    try{ localStorage.setItem("aqt.anfrignoriert", JSON.stringify(this.liste)); }catch(_){}
+    if(Store.backend.id==="supabase" && Auth.eingeloggt()){
+      try{ await SB.einstellungSetzen("anfr_ignoriert", this.liste); }
+      catch(err){ toast("Ausblenden nur im Browser gemerkt – Supabase: "+(err.message||err)); }
+    }
+  }
+};
+
 /* Schon uebernommene Anfragen am Schluessel in den Aktivitaeten erkennen */
 function anfrSchonDa(){
   const schonDa = new Set();
@@ -5473,6 +5509,13 @@ function anfrSchonDa(){
     const m = /\[Anfrage-Import ([^\]]+)\]/.exec(a.text||""); if(m) schonDa.add(m[1]);
   }
   return schonDa;
+}
+
+/* B34: Hat die zugeordnete Firma schon einen offenen Vorgang, ist die
+   Anfrage meist schon von Hand angelegt – dann vorab abwaehlen. */
+function anfrOffenPruefen(e){
+  const v = e.firmaId ? Store.data.vorgaenge.find(x => x.firmaId===e.firmaId && !x.ergebnis && !x.entwurf && istDeal(x)) : null;
+  e.offen = v ? (v.titel || "ohne Titel") : "";
 }
 
 function anfrVorbereiten(liste, name){
@@ -5504,9 +5547,11 @@ function anfrVorbereiten(liste, name){
     e.treffer = [...new Set(kand)];
     e.firmaId = e.treffer.length ? e.treffer[0].id : "";
     e.doppelt = !!(e.schluessel && schonDa.has(e.schluessel));
-    e.an = !e.doppelt;
+    e.ignoriert = AnfrIgnoriert.ist(e.schluessel);
+    anfrOffenPruefen(e);
+    e.an = !e.doppelt && !e.ignoriert && !e.offen;
     return e;
-  });
+  }).filter(e => !e.ignoriert);
   Anfr = { eintraege, datei:name };
 }
 
@@ -5553,8 +5598,9 @@ const AnfrOrdner = {
       try{ liste.push(...anfrAusJson(await (await eintrag.getFile()).text())); n++; }
       catch(e){ console.warn("Anfragen-Datei unlesbar:", eintrag.name, e); }
     }
+    await AnfrIgnoriert.laden();   /* B34 */
     const schonDa = anfrSchonDa(), gesehen = new Set();
-    this.neu = liste.filter(x => x.schluessel && !schonDa.has(x.schluessel) && !gesehen.has(x.schluessel) && (gesehen.add(x.schluessel), true));
+    this.neu = liste.filter(x => x.schluessel && !schonDa.has(x.schluessel) && !AnfrIgnoriert.ist(x.schluessel) && !gesehen.has(x.schluessel) && (gesehen.add(x.schluessel), true));
     this.dateien = n;
   },
   async pruefen(erzwingen){
@@ -5615,6 +5661,144 @@ function anfrOrdnerRendern(){
       "</div></div>";
 }
 
+/* ---------- B32: Offene Angebote fuer Claude ablegen --------------
+   Gegenrichtung zum Anfragen-Ordner: AQT schreibt beim Oeffnen der
+   Pipeline (hoechstens 1×/Minute, nur wenn sich etwas geaendert hat)
+   alle abgegebenen, noch offenen Angebote nach
+   K:\KI Programme\AQT\Nachfassen\aqt-angebote.json. Claude (Outlook-
+   Assistent) gleicht die Datei mit Outlook ab und legt Nachfass-
+   Entwuerfe im jeweiligen Mailverlauf an. Braucht Schreibrecht auf den
+   Ordner – nach einem Browser-Neustart ein Klick auf „Ordner freigeben". */
+const NfExport = {
+  handle:null, geholt:false, zeit:0, laeuft:false, zustand:"", fehler:"", letzter:"", anzahl:0, faellig:0, geschrieben:"",
+  async holen(){
+    if(this.geholt) return this.handle;
+    this.geholt = true;
+    try{
+      const d = await AnfrOrdner.db();
+      this.handle = await new Promise(ok => {
+        const q = d.transaction("h").objectStore("h").get("nachfassen");
+        q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null);
+      });
+    }catch(_){ this.handle = null; }
+    return this.handle;
+  },
+  async merken(h){
+    this.handle = h; this.geholt = true; this.letzter = "";
+    try{
+      const d = await AnfrOrdner.db();
+      await new Promise(ok => { const t = d.transaction("h","readwrite"); t.objectStore("h").put(h,"nachfassen"); t.oncomplete = ok; t.onerror = ok; });
+    }catch(_){}
+  },
+  daten(){
+    const deals = Store.data.vorgaenge.filter(v => istDeal(v));
+    const firma = v => DB.firma(v.firmaId) || {};
+    const angebote = deals.filter(v => !v.ergebnis && v.angebotAm).map(v => {
+      const f = firma(v), nf = nachfassFaellig(v), w = wvNaechste(v);
+      return {
+        vorgangId:v.id, firma:f.name||"", ansprechpartner:f.ansprechpartner||"",
+        email:f.email||"", telefon:f.telefon||"", plz:f.plz||"", ort:f.ort||"",
+        titel:v.titel||"", objekt:objektText(v)||"", stufe:v.stufe||"",
+        angebotAm:v.angebotAm, nachfassStufe:Number(v.nachfassStufe)||0,
+        nachfassLetzte:v.nachfassLetzte||"", nachfassAm:nf,
+        faellig: !!nf && tageBis(nf) <= 0,
+        wiedervorlage: w ? { datum:w.datum||"", anlass:w.anlass||"" } : null,
+        keineRueckmeldung: Number(v.nachfassStufe) >= 3
+      };
+    }).sort((a,b) => (a.nachfassAm||"9").localeCompare(b.nachfassAm||"9"));
+    /* Abgeschlossene mit E-Mail: damit Claude in Outlook gefundene
+       Angebote nicht anmahnt, die in AQT schon entschieden sind */
+    const abgeschlossen = deals.filter(v => v.ergebnis).map(v => {
+      const f = firma(v);
+      return { vorgangId:v.id, firma:f.name||"", email:f.email||"", titel:v.titel||"",
+               angebotAm:v.angebotAm||"", ergebnis:v.ergebnis, absagegrund:v.absagegrund||"" };
+    }).filter(x => x.email);
+    return { quelle:"AQT", angebote, abgeschlossen };
+  },
+  async schreiben(erzwingen){
+    if(this.laeuft) return;
+    if(!erzwingen && Date.now() - this.zeit < 60000){ nfExportRendern(); return; }
+    this.laeuft = true;
+    try{
+      if(!Store.data || !Store.data.vorgaenge || !Store.data.vorgaenge.length){ this.zustand = ""; return; }
+      if(!window.showDirectoryPicker){   /* Firefox: nur Herunterladen moeglich */
+        const d = this.daten();
+        this.anzahl = d.angebote.length; this.faellig = d.angebote.filter(a => a.faellig).length;
+        this.zustand = "download"; return;
+      }
+      const h = await this.holen();
+      if(!h){ this.zustand = "kein-ordner"; return; }
+      const p = await h.queryPermission({ mode:"readwrite" });
+      if(p !== "granted"){ this.zustand = "erlauben"; return; }
+      const d = this.daten();
+      const inhalt = JSON.stringify(d);
+      this.anzahl = d.angebote.length; this.faellig = d.angebote.filter(a => a.faellig).length;
+      if(erzwingen || inhalt !== this.letzter){
+        d.erstellt = new Date().toISOString();
+        const datei = await h.getFileHandle("aqt-angebote.json", { create:true });
+        const w = await datei.createWritable();
+        await w.write(JSON.stringify(d, null, 1)); await w.close();
+        this.letzter = inhalt;
+        this.geschrieben = new Date().toLocaleTimeString("de-DE", { hour:"2-digit", minute:"2-digit" });
+      }
+      this.zustand = "ok"; this.fehler = "";
+      this.zeit = Date.now();
+    }catch(e){
+      this.zustand = "fehler"; this.fehler = e.message || String(e);
+    }finally{
+      this.laeuft = false;
+      nfExportRendern();
+    }
+  },
+  /* Firefox kennt showDirectoryPicker nicht: Datei in den Download-Ordner
+     legen, Claude sucht dort ebenfalls nach aqt-angebote*.json */
+  herunterladen(){
+    const d = this.daten(); d.erstellt = new Date().toISOString();
+    const url = URL.createObjectURL(new Blob([JSON.stringify(d, null, 1)], { type:"application/json" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = "aqt-angebote.json"; a.style.display = "none";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    this.geschrieben = new Date().toLocaleTimeString("de-DE", { hour:"2-digit", minute:"2-digit" });
+    nfExportRendern();
+    toast("Liste gespeichert (Downloads) – Claude findet sie dort");
+  }
+};
+
+function nfExportRendern(){
+  const box = $("#nfExportBox"); if(!box) return;
+  const z = NfExport.zustand;
+  const st = 'class="tiny muted" style="margin-bottom:12px"';
+  if(z === "geht-nicht" || z === ""){ box.innerHTML = ""; return; }
+  if(z === "download"){
+    box.innerHTML = '<div '+st+'>Offene Angebote an Claude: '+NfExport.anzahl+
+      (NfExport.faellig ? ' (davon '+NfExport.faellig+' fällig)' : '')+
+      ' · <button class="linkish" data-act="nfx-download">Liste speichern</button>'+
+      (NfExport.geschrieben ? ' (zuletzt '+esc(NfExport.geschrieben)+' Uhr)' : '')+
+      ' – in Chrome/Edge geht das automatisch</div>';
+    return;
+  }
+  if(z === "kein-ordner"){
+    box.innerHTML = '<div '+st+'>Offene Angebote an Claude geben (Nachfassen über Outlook): '+
+      '<button class="linkish" data-act="nfx-ordner-waehlen">Ordner „Nachfassen“ verbinden</button></div>';
+    return;
+  }
+  if(z === "erlauben"){
+    box.innerHTML = '<div '+st+'>Offene Angebote an Claude: '+
+      '<button class="linkish" data-act="nfx-erlauben">Ordner freigeben</button> (einmal pro Browser-Start)</div>';
+    return;
+  }
+  if(z === "fehler"){
+    box.innerHTML = '<div class="tiny" style="margin-bottom:12px;color:var(--crit)">Nachfass-Liste konnte nicht geschrieben werden: '+esc(NfExport.fehler)+
+      ' · <button class="linkish" data-act="nfx-ordner-waehlen">neu verbinden</button></div>';
+    return;
+  }
+  box.innerHTML = '<div '+st+'>Offene Angebote an Claude übergeben: '+NfExport.anzahl+
+    (NfExport.faellig ? ' (davon '+NfExport.faellig+' fällig)' : '')+
+    (NfExport.geschrieben ? ' · zuletzt '+esc(NfExport.geschrieben)+' Uhr' : '')+
+    ' · <button class="linkish" data-act="nfx-jetzt">jetzt aktualisieren</button></div>';
+}
+
 function anfrZeigen(){
   const E = Anfr.eintraege;
   const doppelt = E.filter(e=>e.doppelt).length;
@@ -5625,7 +5809,8 @@ function anfrZeigen(){
     '<div class="hint" style="margin-bottom:10px">Angehakte Anfragen kommen als Vorgang in die Spalte '+
     "„Angebot zu erstellen“. Gibt es die Firma schon, hängt der Vorgang dort – sonst wird sie neu angelegt "+
     "(Quelle „Eingehende Anfrage“). Vorher wird automatisch eine Sicherung heruntergeladen.</div>"+
-    '<table class="data" style="width:100%"><thead><tr><th></th><th>Anfrage</th><th>Eingang</th><th>Frist</th><th>Firma in AQT</th></tr></thead><tbody>';
+    '<div class="tiny muted" style="margin-bottom:10px">Alt oder uninteressant? „ausblenden“ – dann erscheint die Anfrage nie wieder.</div>'+
+    '<table class="data" style="width:100%"><thead><tr><th></th><th>Anfrage</th><th>Eingang</th><th>Frist</th><th>Firma in AQT</th><th></th></tr></thead><tbody>';
   for(let i=0;i<E.length;i++){
     const e = E[i];
     let ziel;
@@ -5640,10 +5825,13 @@ function anfrZeigen(){
     h += "<tr"+(e.doppelt?' style="opacity:.5"':"")+">"+
       '<td><input type="checkbox" data-anfr-an="'+i+'"'+(e.an?" checked":"")+"></td>"+
       '<td><div class="cellname">'+esc(e.firma)+"</div>"+
-        '<div class="tiny muted">'+esc(e.titel)+(e.doppelt?" · schon übernommen":"")+"</div></td>"+
+        '<div class="tiny muted">'+esc(e.titel)+(e.doppelt?" · schon übernommen":"")+"</div>"+
+        (e.offen ? '<div class="tiny" style="color:var(--warn)">Firma hat schon einen offenen Vorgang: „'+esc(e.offen)+'“ – abgewählt</div>' : "")+
+      "</td>"+
       '<td class="tiny">'+esc(fmtDatum(e.anfrageAm))+"</td>"+
       '<td class="tiny">'+esc(e.frist?fmtDatum(e.frist):"")+"</td>"+
-      "<td>"+ziel+"</td></tr>";
+      "<td>"+ziel+"</td>"+
+      '<td>'+(e.schluessel ? '<button class="linkish tiny" data-act="anfr-ausblenden" data-wert="'+i+'" title="Diese Anfrage nie wieder anzeigen">ausblenden</button>' : "")+"</td></tr>";
   }
   h += "</tbody></table></div>"+
     '<div class="drawer-foot"><button class="btn primary" data-act="anfr-los">Übernehmen</button>'+
@@ -5655,7 +5843,11 @@ document.addEventListener("change", e => {
   const a = e.target.getAttribute("data-anfr-an");
   if(a!=null){ Anfr.eintraege[+a].an = e.target.checked; return; }
   const f = e.target.getAttribute("data-anfr-firma");
-  if(f!=null){ Anfr.eintraege[+f].firmaId = e.target.value; }
+  if(f!=null){
+    const x = Anfr.eintraege[+f]; x.firmaId = e.target.value;
+    const vorher = x.offen; anfrOffenPruefen(x);
+    if(x.offen !== vorher){ if(x.offen) x.an = false; anfrZeigen(); }
+  }
 });
 
 function anfrAusfuehren(){
@@ -7367,6 +7559,17 @@ function aktion(act, el){
     case "anfr-oeffnen": { anfrImportOeffnen(); return; }
     case "anfr-lesen":   { anfrLesen(); return; }
     case "anfr-los":     { anfrAusfuehren(); return; }
+    case "anfr-ausblenden": {
+      if(!Anfr) return;
+      const i = Number(el.getAttribute("data-wert")), e = Anfr.eintraege[i];
+      if(!e) return;
+      Anfr.eintraege.splice(i, 1);
+      AnfrOrdner.neu = AnfrOrdner.neu.filter(x => x.schluessel !== e.schluessel);
+      AnfrOrdner.zeit = 0;
+      AnfrIgnoriert.merken(e).then(() => toast("„"+(e.firma||"Anfrage")+"“ ausgeblendet – erscheint nicht wieder"));
+      if(Anfr.eintraege.length) anfrZeigen(); else { Anfr = null; layerSchliessen(); render(); }
+      return;
+    }
     case "anfr-ordner-waehlen": {
       window.showDirectoryPicker({ id:"aqt-anfragen", mode:"read" })
         .then(h => AnfrOrdner.merken(h)).then(() => AnfrOrdner.pruefen(true))
@@ -7381,6 +7584,22 @@ function aktion(act, el){
       return;
     }
     case "anfr-ordner-neu":     { AnfrOrdner.pruefen(true); return; }
+    /* --- B32: offene Angebote fuer Claude --- */
+    case "nfx-ordner-waehlen": {
+      window.showDirectoryPicker({ id:"aqt-nachfassen", mode:"readwrite" })
+        .then(h => NfExport.merken(h)).then(() => NfExport.schreiben(true))
+        .catch(e => { if(e && e.name!=="AbortError") toast("Ordner konnte nicht verbunden werden: "+e.message); });
+      return;
+    }
+    case "nfx-erlauben": {
+      if(!NfExport.handle) return;
+      NfExport.handle.requestPermission({ mode:"readwrite" })
+        .then(p => { if(p==="granted") NfExport.schreiben(true); else toast("Ohne Freigabe kann AQT die Liste nicht ablegen"); })
+        .catch(e => toast(e.message));
+      return;
+    }
+    case "nfx-jetzt": { NfExport.schreiben(true); return; }
+    case "nfx-download": { NfExport.herunterladen(); return; }
     case "anfr-ordner-vorschau": {
       if(!AnfrOrdner.neu.length) return;
       anfrVorbereiten(AnfrOrdner.neu.slice(), "Ordner Anfragen ("+AnfrOrdner.dateien+" Dateien)");

@@ -1717,6 +1717,20 @@ function abschlussAltlasten(){
   try{ localStorage.setItem("aqt.b17wv", "1"); }catch(_){}
   return n;
 }
+/* B37 einmalig: offene Angebote mit Angebotsdatum, an denen noch
+   „Anfrage bearbeiten“ haengt – das ist mit dem Angebot erledigt */
+function anfrageWvAltlasten(){
+  try{ if(localStorage.getItem("aqt.b37anfrwv")) return 0; }catch(_){ return 0; }
+  let n = 0;
+  for (const v of Store.data.vorgaenge){
+    if(v.ergebnis || !v.angebotAm) continue;
+    for (const x of (v.wiedervorlagen||[]))
+      if(!x.erledigt && (x.anlass||"").indexOf("Anfrage bearbeiten") === 0){ x.erledigt = true; n++; }
+  }
+  if(n) Store.save();
+  try{ localStorage.setItem("aqt.b37anfrwv", "1"); }catch(_){}
+  return n;
+}
 function dringlichkeit(v){
   if(v.ergebnis){
     const wa = wvNaechste(v), ta = wa ? tageBis(wa.datum) : null;
@@ -1750,12 +1764,18 @@ function anhangDateienWeg(anhaenge){
   }
 }
 
-/* Vorgang löschen räumt seine Aktivitäten und Anhänge mit weg */
+/* Vorgang löschen räumt seine Aktivitäten und Anhänge mit weg.
+   B37: alles geht vorher in den Papierkorb (Rueckgabe = Eintrag), die
+   Anhang-Dateien bleiben bis zum endgueltigen Leeren in der Ablage. */
 function vorgangLoeschen(id){
-  anhangDateienWeg(DB.anhaengeVon(id));
+  const v = DB.vorgang(id); let pk = null;
+  if(v) pk = Papierkorb.ablegen("vorgang", "Vorgang „"+(v.titel||"Ohne Titel")+"“ – "+DB.firmaName(v.firmaId), {
+    vorgaenge:[v], aktivitaeten:Store.data.aktivitaeten.filter(a=>a.vorgangId===id),
+    anhaenge:(Store.data.anhaenge||[]).filter(a=>a.vorgangId===id) });
   Store.data.vorgaenge = Store.data.vorgaenge.filter(v=>v.id!==id);
   Store.data.aktivitaeten = Store.data.aktivitaeten.filter(a=>a.vorgangId!==id);
   Store.data.anhaenge = (Store.data.anhaenge||[]).filter(a=>a.vorgangId!==id);
+  return pk;
 }
 /* Kompletten Datenstand als Datei ablegen. Laeuft auch automatisch, bevor
    im Stapel geloescht wird - dann liegt immer ein Stand von vorher bereit. */
@@ -1933,12 +1953,22 @@ function firmaHatVorgaenge(id){
 function firmenLoeschen(ids){
   const set = new Set(ids);
   const vIds = new Set(Store.data.vorgaenge.filter(v=>set.has(v.firmaId)).map(v=>v.id));
-  anhangDateienWeg((Store.data.anhaenge||[]).filter(a=>vIds.has(a.vorgangId)));
+  /* B37: vorher in den Papierkorb, Anhang-Dateien bleiben vorerst liegen */
+  const fs = Store.data.firmen.filter(f=>set.has(f.id));
+  let pk = null;
+  if(fs.length) pk = Papierkorb.ablegen("firma",
+    fs.length===1 ? "Firma „"+(fs[0].name||"(ohne Namen)")+"“"+(vIds.size ? " mit "+vIds.size+(vIds.size===1?" Vorgang":" Vorgängen") : "")
+                  : fs.length+" Firmen ("+fs.slice(0,3).map(f=>f.name).join(", ")+(fs.length>3?" …":"")+")", {
+    firmen:fs, objekte:Store.data.objekte.filter(o=>set.has(o.firmaId)),
+    vorgaenge:Store.data.vorgaenge.filter(v=>vIds.has(v.id)),
+    aktivitaeten:Store.data.aktivitaeten.filter(a=>vIds.has(a.vorgangId)),
+    anhaenge:(Store.data.anhaenge||[]).filter(a=>vIds.has(a.vorgangId)) });
   Store.data.firmen     = Store.data.firmen.filter(f=>!set.has(f.id));
   Store.data.objekte    = Store.data.objekte.filter(o=>!set.has(o.firmaId));
   Store.data.vorgaenge  = Store.data.vorgaenge.filter(v=>!set.has(v.firmaId));
   Store.data.aktivitaeten = Store.data.aktivitaeten.filter(a=>!vIds.has(a.vorgangId));
   Store.data.anhaenge   = (Store.data.anhaenge||[]).filter(a=>!vIds.has(a.vorgangId));
+  return pk;
 }
 
 /* ---------- Dubletten-Pruefung -------------------------------------
@@ -2499,7 +2529,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 28.10.2026 · B36</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 28.10.2026 · B37</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -2528,6 +2558,7 @@ function appStarten(){
   App.seite="pipeline";
   fristenNachtragen();     /* alte Vorgänge: Frist aus der Notiz übernehmen */
   abschlussAltlasten();    /* B17: alte Nachfass-Termine bei Abgeschlossenen abhaken */
+  anfrageWvAltlasten();    /* B37: „Anfrage bearbeiten“ bei schon abgegebenen Angeboten abhaken */
   nachfass14Angebote();    /* B28: offene Angebote von 10 auf 14 Tage */
   render();
   /* Vorlagen nachladen; bis dahin gilt der Browser-Stand bzw. der Standard */
@@ -2601,9 +2632,11 @@ function render(){
   $("#pageActions").innerHTML = "";
   ({ pipeline:renderPipeline, firmen:renderFirmen, adressen:renderAdressen,
      zahlen:renderZahlen, setup:renderSetup })[App.seite]();
+  /* B37: Vorschlaege von Claude stehen auf jeder Seite oben */
+  try{ const c = $("#content"); if(c && !$("#claudeBox")) c.insertAdjacentHTML("afterbegin", '<div id="claudeBox"></div>'); ClaudeKanal.rendern(); }catch(_){}
   if(typeof eingangPruefen==="function") eingangPruefen();
   try{ if(App.seite==="pipeline") AnfrOrdner.pruefen(false); }catch(_){}   /* B31 */
-  try{ if(App.seite==="pipeline") NfExport.schreiben(false); }catch(_){}   /* B32 */
+  try{ NfExport.schreiben(false); }catch(_){}   /* B32, ab B37 auf jeder Seite */
 }
 
 /* ---------- 6. Pipeline --------------------------------------- */
@@ -2880,7 +2913,13 @@ function faelligHTML(){
       arr.map(v=>{
         const w=wvNaechste(v), dr=dringlichkeit(v);
         const fi = fristInfo(v);
-        return '<button class="vcard'+(dr?" u-"+dr:"")+(v.kontaktweg==="Passiv"?" passiv":"")+'" data-vorgang="'+v.id+'">'+
+        /* B37: Schnellknoepfe neben der Karte – ohne den Vorgang zu oeffnen */
+        const knoepfe = '<span class="fz-knoepfe" style="display:flex;gap:6px;margin:-4px 0 10px 4px;flex-wrap:wrap">'+
+          '<button class="btn sm" data-act="fz-plus14" data-id="'+v.id+'" title="Wiedervorlage um 14 Tage verschieben">+14 Tage</button>'+
+          '<button class="btn sm" data-act="fz-erledigt" data-id="'+v.id+'" title="Diese Wiedervorlage abhaken">Erledigt</button>'+
+          (v.ergebnis ? "" : '<button class="btn sm ghost" data-act="fz-absage" data-id="'+v.id+'" title="Absage buchen">Absage</button>')+
+          "</span>";
+        return '<div class="fz-zeile"><button class="vcard'+(dr?" u-"+dr:"")+(v.kontaktweg==="Passiv"?" passiv":"")+'" data-vorgang="'+v.id+'">'+
           '<span class="v-firma">'+esc(DB.firmaName(v.firmaId))+"</span>"+
           '<span class="v-titel">'+esc(v.titel||"Ohne Titel")+"</span>"+
           '<span class="v-meta">'+
@@ -2890,7 +2929,7 @@ function faelligHTML(){
             (w.anlass?'<span class="tiny">'+esc(w.anlass)+"</span>":"")+
             '<span class="chip'+(v.ergebnis==="gewonnen"?" ok":"")+'">'+
               esc(v.ergebnis ? (v.ergebnis==="gewonnen" ? "Auftrag" : "Absage") : stufenName(v.stufe))+"</span>"+
-          "</span></button>";
+          "</span></button>"+knoepfe+"</div>";
       }).join("")+"</div>";
   };
   h += block("Heute und überfällig", heuteUeber);
@@ -3457,9 +3496,10 @@ function terminAutomatik(v, altFrist, altAngebot){
   if(v.angebotAm && v.angebotAm !== altAngebot && !v.ergebnis){
     const ziel = STUFEN.findIndex(s => s.id === "angebot_versendet");
     if(v.stufe !== "abschluss" && stufenIndex(v) < ziel) v.stufe = "angebot_versendet";
-    /* offene Frist-Erinnerungen abhaken, das Angebot ist ja raus */
+    /* offene Frist-Erinnerungen abhaken, das Angebot ist ja raus
+       (B37: auch „Anfrage bearbeiten“ – blieb sonst ewig in „Fällig“ stehen) */
     for (const x of (v.wiedervorlagen||[]))
-      if(!x.erledigt && (x.anlass||"").indexOf("Angebot vor Frist") === 0) x.erledigt = true;
+      if(!x.erledigt && ((x.anlass||"").indexOf("Angebot vor Frist") === 0 || (x.anlass||"").indexOf("Anfrage bearbeiten") === 0)) x.erledigt = true;
     const tage = nachfassFrist(v);
     /* B24: Bei einer Versandkorrektur die bestehende(n) offene(n)
        Nachfassen-Wiedervorlage(n) mitverschieben statt sie stehen zu
@@ -5739,7 +5779,38 @@ const NfExport = {
         angelegt:v.angelegt||""
       };
     });
-    return { quelle:"AQT", stand:"B36", anzahlFirmen:Store.data.firmen.length, vorgaenge, firmen };
+    /* B37: Chronik der letzten 120 Tage (Text gekuerzt), Einstellungen,
+       Papierkorb und offene Claude-Vorschlaege */
+    const ab = plusTage(-120);
+    const aktivitaeten = Store.data.aktivitaeten.filter(a => (a.datum||"") >= ab).map(a => ({
+      id:a.id, vorgangId:a.vorgangId, typ:a.typ||"", datum:a.datum||"", text:String(a.text||"").slice(0,400) }));
+    const vl = (typeof Vorlagen!=="undefined") ? Vorlagen.aktuell() : {};
+    return { quelle:"AQT", stand:"B37", seite:App.seite, anzahlFirmen:Store.data.firmen.length,
+      vorgaenge, firmen, aktivitaeten,
+      einstellungen:{ nachfassTage:Number(vl.nachfassTage)||14, ich:vl.ich||"",
+        vorlagen:(vl.stufen||[]).map(s => ({ kurz:s.kurz||"", betreff:s.betreff||"" })) },
+      papierkorb:Papierkorb.laden().map(e => ({ id:e.id, art:e.art, text:e.text, am:e.am })),
+      claudeOffen:ClaudeKanal.offen.map(a => a.id) };
+  },
+  /* B37: alle Firmen kompakt – fuer Kaltakquise, Adressen, Briefe, Auswertungen */
+  firmenStand(){
+    const nv = new Map(), offen = new Map();
+    for(const v of Store.data.vorgaenge){
+      nv.set(v.firmaId, (nv.get(v.firmaId)||0)+1);
+      if(!v.ergebnis) offen.set(v.firmaId, v.id);
+    }
+    return { quelle:"AQT", stand:"B37",
+      felder:["id","name","branche","gruppe","segment","hauptkategorie","unterkategorie","ablage","kontaktweg","status","quelle",
+        "ansprechpartner","briefanrede","telefon","email","website","strasse","plz","ort","gesperrt","notiz","angelegt",
+        "vorgaenge","offenerVorgang","briefe","letzterBrief"],
+      firmen: Store.data.firmen.filter(f => !f.entwurf).map(f => {
+        const b = f.briefe||[], lb = b.length ? b.reduce((x,y) => (y.datum||"") > (x.datum||"") ? y : x) : null;
+        return [f.id, f.name||"", f.branche||"", f.gruppe||"", f.segment||"", f.hauptkategorie||"", f.unterkategorie||"", f.ablage||"",
+          f.kontaktweg||"", f.status||"", f.quelle||"", f.ansprechpartner||"", f.briefanrede||"", f.telefon||"", f.email||"",
+          f.website||"", f.strasse||"", f.plz||"", f.ort||"", !!f.gesperrt, String(f.notiz||"").slice(0,200),
+          String(f.angelegt||"").slice(0,10), nv.get(f.id)||0, offen.get(f.id)||"", b.length,
+          lb ? (lb.datum||"")+" "+(lb.anlass||"") : ""];
+      }) };
   },
   /* Nach jedem Speichern (gebremst) neu ablegen, wenn der Ordner freigegeben ist */
   nachSpeichern(){
@@ -5762,6 +5833,7 @@ const NfExport = {
       const p = await h.queryPermission({ mode:"readwrite" });
       if(p !== "granted"){ this.zustand = "erlauben"; return; }
       await this.rueckmeldung(h);
+      await ClaudeKanal.lesen(h);   /* B37 */
       const d = this.daten();
       const inhalt = JSON.stringify(d);
       this.anzahl = d.angebote.length; this.faellig = d.angebote.filter(a => a.faellig).length;
@@ -5782,6 +5854,14 @@ const NfExport = {
         await sw.write(JSON.stringify(s)); await sw.close();
         this.letzterStand = sInhalt;
       }
+      /* B37: alle Firmen (Kaltakquise, Adressen, Briefe) in eigener Datei */
+      const fInhalt = JSON.stringify(this.firmenStand());
+      if(erzwingen || fInhalt !== this.letzteFirmen){
+        const fd = await h.getFileHandle("aqt-firmen.json", { create:true });
+        const fw = await fd.createWritable();
+        await fw.write(fInhalt); await fw.close();
+        this.letzteFirmen = fInhalt;
+      }
       this.zustand = "ok"; this.fehler = "";
       this.zeit = Date.now();
     }catch(e){
@@ -5789,10 +5869,13 @@ const NfExport = {
     }finally{
       this.laeuft = false;
       nfExportRendern();
-      if(this.neu){
-        toast(this.neu+(this.neu===1?" Nachfass-Mail":" Nachfass-Mails")+" aus Outlook eingetragen");
-        this.neu = 0; setTimeout(() => render(), 0);
-      }
+      if(this.neu || ClaudeKanal.neuAuto){
+        const t = [];
+        if(this.neu) t.push(this.neu+(this.neu===1?" Nachfass-Mail":" Nachfass-Mails")+" aus Outlook eingetragen");
+        if(ClaudeKanal.neuAuto) t.push(ClaudeKanal.neuAuto+" Einträge von Claude gebucht");
+        toast(t.join(" · "));
+        this.neu = 0; ClaudeKanal.neuAuto = 0; setTimeout(() => render(), 0);
+      } else ClaudeKanal.rendern();
     }
   },
   /* B35: Rueckmeldung vom Outlook-Assistenten. Claude legt im selben Ordner
@@ -5835,6 +5918,321 @@ const NfExport = {
     this.geschrieben = new Date().toLocaleTimeString("de-DE", { hour:"2-digit", minute:"2-digit" });
     nfExportRendern();
     toast("Liste gespeichert (Downloads) – Claude findet sie dort");
+  }
+};
+
+/* ---------- B37: Papierkorb -------------------------------------
+   Geloeschte Vorgaenge und Firmen liegen 30 Tage im Papierkorb (samt
+   Objekten, Aktivitaeten und Anhang-Eintraegen) und lassen sich
+   zurueckholen. Gespeichert in aqt_einstellungen unter „papierkorb“,
+   zusaetzlich im Browser. Anhang-Dateien werden erst beim endgueltigen
+   Leeren aus der Ablage entfernt. */
+const Papierkorb = {
+  TAGE:30, MAX_FIRMEN:5000, liste:null, entfernt:new Set(), _t:null,
+  laden(){
+    if(this.liste) return this.liste;
+    try{ this.liste = JSON.parse(localStorage.getItem("aqt.papierkorb") || "[]"); }catch(_){ this.liste = []; }
+    if(Store.backend.id==="supabase" && Auth.eingeloggt()){
+      SB.einstellungenLaden().then(alle => {
+        if(Array.isArray(alle.papierkorb)) this.zusammen(alle.papierkorb);
+      }).catch(e => console.warn("Papierkorb nicht geladen:", e.message||e));
+    }
+    return this.liste;
+  },
+  zusammen(fremd){
+    const da = new Set(this.liste.map(x => x.id));
+    for(const x of fremd) if(!da.has(x.id) && !this.entfernt.has(x.id)) this.liste.push(x);
+    this.liste.sort((a,b) => (b.am||"").localeCompare(a.am||""));
+  },
+  /* daten = { firmen, objekte, vorgaenge, aktivitaeten, anhaenge } – Kopien der Datensaetze */
+  ablegen(art, text, daten){
+    this.laden();
+    const e = { id:uid(), art, text, am:new Date().toISOString(),
+      daten: JSON.parse(JSON.stringify(daten)) };
+    this.liste.unshift(e);
+    this.aufraeumen(false);
+    this.speichern();
+    return e;
+  },
+  aufraeumen(speichern){
+    const grenze = plusTage(-this.TAGE);
+    let firmen = 0, weg = [];
+    this.liste = this.liste.filter(e => {
+      firmen += (e.daten.firmen||[]).length;
+      const alt = (e.am||"").slice(0,10) < grenze || firmen > this.MAX_FIRMEN;
+      if(alt) weg.push(e);
+      return !alt;
+    });
+    for(const e of weg){ this.entfernt.add(e.id); anhangDateienWeg(e.daten.anhaenge||[]); }
+    if(weg.length && speichern !== false) this.speichern();
+    return weg.length;
+  },
+  speichern(){
+    try{ localStorage.setItem("aqt.papierkorb", JSON.stringify(this.liste)); }
+    catch(_){ /* Browser voll – die Cloud-Kopie zaehlt */ }
+    if(Store.backend.id!=="supabase" || !Auth.eingeloggt()) return;
+    clearTimeout(this._t);
+    this._t = setTimeout(async () => {
+      try{
+        const alle = await SB.einstellungenLaden();
+        if(Array.isArray(alle.papierkorb)) this.zusammen(alle.papierkorb);
+        await SB.einstellungSetzen("papierkorb", this.liste);
+      }catch(e){ toast("Papierkorb nur im Browser gemerkt – Supabase: "+(e.message||e), true); }
+    }, 1500);
+  },
+  wiederherstellen(id){
+    this.laden();
+    const e = this.liste.find(x => x.id === id); if(!e) return "";
+    const d = e.daten;
+    const rein = (k, arr) => {
+      if(!Array.isArray(Store.data[k])) Store.data[k] = [];
+      const da = new Set(Store.data[k].map(x => x.id));
+      for(const r of (arr||[])) if(!da.has(r.id)) Store.data[k].push(r);
+    };
+    rein("firmen", d.firmen); rein("objekte", d.objekte); rein("vorgaenge", d.vorgaenge);
+    rein("aktivitaeten", d.aktivitaeten); rein("anhaenge", d.anhaenge);
+    this.liste = this.liste.filter(x => x.id !== id);
+    this.entfernt.add(id);
+    Store.save(); this.speichern();
+    return e.text;
+  },
+  endgueltig(id){
+    this.laden();
+    const e = this.liste.find(x => x.id === id); if(!e) return;
+    anhangDateienWeg(e.daten.anhaenge||[]);
+    this.liste = this.liste.filter(x => x.id !== id);
+    this.entfernt.add(id);
+    this.speichern();
+  },
+  panelHTML(){
+    const l = this.laden();
+    return '<div class="panel" style="margin-top:18px"><div class="panel-head"><h3>Papierkorb</h3>'+
+      '<span class="chip" style="margin-left:auto">'+l.length+"</span></div><div class=\"panel-body\">"+
+      '<div class="hint" style="margin-bottom:12px">Gelöschte Vorgänge und Firmen bleiben '+this.TAGE+
+      " Tage hier und lassen sich mit allen Aktivitäten zurückholen. Danach werden sie endgültig entfernt.</div>"+
+      (l.length
+        ? '<table class="data" style="width:100%"><thead><tr><th>Gelöscht am</th><th>Was</th><th></th></tr></thead><tbody>'+
+          l.slice(0,100).map(e =>
+            "<tr><td class=\"tiny\">"+esc(fmtDatum(e.am))+" "+esc((e.am||"").slice(11,16))+"</td>"+
+            "<td>"+esc(e.text)+"</td>"+
+            '<td style="white-space:nowrap"><button class="btn sm" data-act="pk-zurueck" data-id="'+esc(e.id)+'">Wiederherstellen</button> '+
+            '<button class="btn sm ghost" data-act="pk-weg" data-id="'+esc(e.id)+'">Endgültig löschen</button></td></tr>'
+          ).join("")+"</tbody></table>"+
+          (l.length>100 ? '<div class="tiny muted" style="margin-top:6px">… und '+(l.length-100)+" ältere</div>" : "")
+        : '<div class="tiny muted">Leer.</div>')+
+      "</div></div>";
+  }
+};
+
+/* Meldung mit Knopf (z.B. „Rückgängig“), bleibt 8 Sekunden stehen */
+function toastAktion(text, knopf, fn){
+  const host = $("#toastHost"); if(!host) return;
+  host.innerHTML = '<div class="toast">'+esc(text)+' <button class="linkish" id="toastKnopf" style="color:inherit;font-weight:700;margin-left:8px">'+esc(knopf)+"</button></div>";
+  const b = $("#toastKnopf");
+  if(b) b.onclick = () => { host.innerHTML = ""; fn(); };
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => host.innerHTML = "", 8000);
+}
+function papierkorbToast(text, eintrag){
+  if(!eintrag){ toast(text); return; }
+  toastAktion(text+" · im Papierkorb", "Rückgängig", () => {
+    Papierkorb.wiederherstellen(eintrag.id); render(); toast("Wiederhergestellt");
+  });
+}
+
+/* ---------- B37: Auftraege von Claude ----------------------------
+   Claude (Outlook-Assistent) legt claude-auftraege.json in den verbundenen
+   Ordner: { auftraege:[{ id, art, text, grund, auto, vorgangId, firmaId, daten }] }.
+   AQT zeigt sie auf jeder Seite oben als Vorschlaege; Romano uebernimmt oder
+   lehnt ab. Nur Eintraege mit auto:true UND einer harmlosen Art (Chronik,
+   Angebot abgegeben) bucht AQT sofort. Ergebnis jeder Entscheidung steht in
+   claude-erledigt.json, gemerkt in aqt_einstellungen „claude_erledigt“. */
+const CLAUDE_AUTO = ["aktivitaet", "angebot"];
+const CLAUDE_VORGANG_FELDER = ["titel","notiz","frist","anfrageAm","kontaktweg","nachfassTage","objektId"];
+const CLAUDE_FIRMA_FELDER = ["name","branche","gruppe","segment","hauptkategorie","unterkategorie","ablage","kontaktweg","status",
+  "quelle","ansprechpartner","briefanrede","telefon","email","website","strasse","plz","ort","notiz","gesperrt"];
+const ClaudeKanal = {
+  offen:[], erledigt:null, alle:false, zuletzt:"", neuAuto:0,
+  async erledigtLaden(){
+    if(this.erledigt) return;
+    let l = [];
+    try{ l = JSON.parse(localStorage.getItem("aqt.claudeErledigt") || "[]"); }catch(_){}
+    if(Store.backend.id==="supabase" && Auth.eingeloggt()){
+      try{
+        const alle = await SB.einstellungenLaden();
+        if(Array.isArray(alle.claude_erledigt)){
+          const da = new Set(l.map(x => x.id));
+          for(const x of alle.claude_erledigt) if(!da.has(x.id)) l.push(x);
+        }
+      }catch(e){ console.warn("claude_erledigt nicht geladen:", e.message||e); }
+    }
+    this.erledigt = new Map(l.map(x => [x.id, x]));
+  },
+  async lesen(h){
+    let d;
+    try{
+      const fh = await h.getFileHandle("claude-auftraege.json");
+      d = JSON.parse(await (await fh.getFile()).text());
+    }catch(_){ this.offen = []; return; }
+    await this.erledigtLaden();
+    const neu = (d.auftraege||[]).filter(a => a && a.id && a.art && !this.erledigt.has(a.id));
+    this.offen = [];
+    let n = 0;
+    for(const a of neu){
+      if(a.auto && CLAUDE_AUTO.indexOf(a.art) >= 0){
+        try{ const t = this.anwenden(a); this.merken(a, "auto", t); n++; }
+        catch(e){ this.merken(a, "fehler", e.message||String(e)); }
+      } else this.offen.push(a);
+    }
+    if(n){ Store.save(); this.neuAuto += n; }
+    this.zuletzt = new Date().toLocaleTimeString("de-DE", { hour:"2-digit", minute:"2-digit" });
+    await this.quittungSchreiben(h);
+  },
+  merken(a, status, info){
+    this.erledigt.set(a.id, { id:a.id, art:a.art, status, info:info||"", text:a.text||"", am:new Date().toISOString() });
+  },
+  async quittungSchreiben(h){
+    const l = [...this.erledigt.values()].sort((a,b) => (b.am||"").localeCompare(a.am||"")).slice(0, 1000);
+    try{ localStorage.setItem("aqt.claudeErledigt", JSON.stringify(l)); }catch(_){}
+    if(Store.backend.id==="supabase" && Auth.eingeloggt()){
+      try{ await SB.einstellungSetzen("claude_erledigt", l); }catch(e){ console.warn("claude_erledigt:", e.message||e); }
+    }
+    h = h || NfExport.handle;
+    if(!h) return;
+    try{
+      if(await h.queryPermission({ mode:"readwrite" }) !== "granted") return;
+      const fh = await h.getFileHandle("claude-erledigt.json", { create:true });
+      const w = await fh.createWritable();
+      await w.write(JSON.stringify({ quelle:"AQT", erstellt:new Date().toISOString(), erledigt:l }, null, 1)); await w.close();
+    }catch(e){ console.warn("claude-erledigt.json:", e.message||e); }
+  },
+  /* Fuehrt einen Auftrag aus und gibt eine kurze Rueckmeldung zurueck.
+     Wirft einen Fehler, wenn etwas nicht passt – dann bleibt alles, wie es war. */
+  anwenden(a){
+    const d = a.daten || {};
+    const V = () => { const v = DB.vorgang(a.vorgangId || d.vorgangId); if(!v) throw new Error("Vorgang nicht gefunden"); return v; };
+    const F = () => { const f = DB.firma(a.firmaId || d.firmaId); if(!f) throw new Error("Firma nicht gefunden"); return f; };
+    const notiz = (v, txt) => neueAktivitaet({ vorgangId:v.id, typ:d.typ||"Notiz", datum:d.datum||ISO(new Date()), text:txt+"\n[Claude "+a.id+"]" });
+    switch(a.art){
+      case "aktivitaet": { const v = V(); notiz(v, d.text||a.text||""); return "Chronik eingetragen"; }
+      case "angebot": {
+        const v = V(); if(v.ergebnis) throw new Error("Vorgang ist abgeschlossen");
+        const alt = v.angebotAm; v.angebotAm = d.datum || ISO(new Date()); delete v.entwurf;
+        /* „Anfrage bearbeiten“ ist mit dem Angebot erledigt */
+        for(const x of (v.wiedervorlagen||[])) if(!x.erledigt && (x.anlass||"").indexOf("Anfrage bearbeiten") === 0) x.erledigt = true;
+        neueAktivitaet({ vorgangId:v.id, typ:"E-Mail", datum:v.angebotAm,
+          text:"Angebot per E-Mail versendet"+(d.text ? "\n\n"+d.text : "")+"\n[Claude "+a.id+"]" });
+        return terminAutomatik(v, v.frist, alt) || "Angebot eingetragen";
+      }
+      case "wiedervorlage": {
+        const v = V(); if(!d.datum) throw new Error("Datum fehlt");
+        if(d.offeneErledigen) for(const x of (v.wiedervorlagen||[])) if(!x.erledigt) x.erledigt = true;
+        wvSetzen(v, d.datum, d.anlass || "Wiedervorlage");
+        return "Wiedervorlage "+fmtDatum(d.datum);
+      }
+      case "stufe": {
+        const v = V(); if(!STUFEN.some(s => s.id === d.stufe) || d.stufe === "abschluss") throw new Error("Stufe unbekannt");
+        const alt = v.stufe; v.stufe = d.stufe;
+        if(v.ergebnis){ abschlussTermineAbhaken(v); v.ergebnis = ""; v.absagegrund = ""; }
+        stufenAutomatik(v, alt);
+        return "Stufe: "+stufenName(d.stufe);
+      }
+      case "absage": {
+        const v = V(); const g = ABSAGEGRUENDE.indexOf(d.grund) >= 0 ? d.grund : "anderes";
+        delete v.entwurf;
+        notiz(v, "Absage: "+g+(d.text ? " – "+d.text : ""));
+        v.ergebnis = "verloren"; v.stufe = "abschluss"; v.absagegrund = g;
+        abschlussWvAbhaken(v); wvSetzen(v, plusMonate(9), "Nach Absage wieder ansprechen");
+        return "Absage gebucht ("+g+")";
+      }
+      case "auftrag": {
+        const v = V(); delete v.entwurf;
+        if(d.text) notiz(v, d.text);
+        v.ergebnis = "gewonnen"; v.stufe = "abschluss";
+        abschlussWvAbhaken(v);
+        wvSetzen(v, plusTage(90), "90-Tage-Check nach Vertragsstart");
+        wvSetzen(v, plusMonate(3), "Empfehlung erfragen");
+        const f = DB.firma(v.firmaId); if(f && f.status !== "Kunde") f.status = "Kunde";
+        return "Auftrag gebucht";
+      }
+      case "vorgang-aendern": {
+        const v = V(), fe = d.felder || {}, altFrist = v.frist; let n = 0;
+        for(const k of CLAUDE_VORGANG_FELDER) if(k in fe){ v[k] = fe[k]; n++; }
+        if(!n) throw new Error("Keine erlaubten Felder");
+        terminAutomatik(v, altFrist, v.angebotAm);
+        return n+" Feld(er) geändert";
+      }
+      case "firma-aendern": {
+        const f = F(), fe = d.felder || {}; let n = 0;
+        for(const k of CLAUDE_FIRMA_FELDER) if(k in fe){ f[k] = fe[k]; n++; }
+        if(!n) throw new Error("Keine erlaubten Felder");
+        return n+" Feld(er) geändert";
+      }
+      case "vorgang-papierkorb": { const v = V(); vorgangLoeschen(v.id); return "in den Papierkorb gelegt"; }
+      case "firma-papierkorb": { const f = F(); firmenLoeschen([f.id]); return "in den Papierkorb gelegt"; }
+      case "firmen-zusammenlegen": {
+        const ids = d.ids || [], keep = d.behalten;
+        if(!keep || ids.indexOf(keep) < 0 || ids.some(i => !DB.firma(i))) throw new Error("Firmen nicht gefunden");
+        const n = dubMergeKern(ids, keep); if(!n) throw new Error("Nichts zusammengelegt");
+        return n+" Firma(en) zusammengelegt";
+      }
+      case "hinweis": return "gelesen";
+    }
+    throw new Error("Unbekannte Art: "+a.art);
+  },
+  async entscheiden(id, ja){
+    const a = this.offen.find(x => x.id === id); if(!a) return;
+    await this.erledigtLaden();
+    if(ja){
+      try{ const t = this.anwenden(a); this.merken(a, "ok", t); Store.save(); toast(t); }
+      catch(e){ this.merken(a, "fehler", e.message||String(e)); toast("Nicht möglich: "+(e.message||e)); }
+    } else { this.merken(a, "abgelehnt", ""); toast("Vorschlag abgelehnt"); }
+    this.offen = this.offen.filter(x => x.id !== id);
+    render();
+    await this.quittungSchreiben();
+  },
+  async alleUebernehmen(){
+    await this.erledigtLaden();
+    let ok = 0, fehl = 0;
+    for(const a of this.offen){
+      if(a.art === "hinweis") continue;
+      try{ this.merken(a, "ok", this.anwenden(a)); ok++; }
+      catch(e){ this.merken(a, "fehler", e.message||String(e)); fehl++; }
+    }
+    this.offen = this.offen.filter(a => a.art === "hinweis");
+    if(ok) Store.save();
+    render();
+    toast(ok+" Vorschläge übernommen"+(fehl ? " · "+fehl+" nicht möglich" : ""));
+    await this.quittungSchreiben();
+  },
+  rendern(){
+    const box = $("#claudeBox"); if(!box) return;
+    const l = this.offen;
+    if(!l.length){ box.innerHTML = ""; return; }
+    const zeigen = this.alle ? l : l.slice(0, 6);
+    const ziel = a => {
+      const v = DB.vorgang(a.vorgangId || (a.daten||{}).vorgangId), f = DB.firma(a.firmaId || (a.daten||{}).firmaId);
+      if(v) return ' <button class="linkish" data-vorgang="'+esc(v.id)+'">'+esc(DB.firmaName(v.firmaId))+"</button>";
+      if(f) return ' <button class="linkish" data-firma="'+esc(f.id)+'">'+esc(f.name)+"</button>";
+      return "";
+    };
+    box.innerHTML = '<div class="panel" style="margin-bottom:14px;border-left:3px solid var(--accent,#2b6cb0)">'+
+      '<div class="panel-head"><h3>Vorschläge von Claude <span class="chip">'+l.length+"</span></h3>"+
+        '<span style="margin-left:auto;display:flex;gap:8px">'+
+        (l.some(a => a.art !== "hinweis") ? '<button class="btn sm primary" data-act="ck-alle">Alle übernehmen</button>' : "")+
+        "</span></div>"+
+      '<div class="panel-body" style="padding-top:4px">'+
+      zeigen.map(a =>
+        '<div style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--line)">'+
+          '<div style="flex:1;font-size:13.5px">'+esc(a.text||a.art)+ziel(a)+
+            (a.grund ? '<div class="tiny muted">'+esc(a.grund)+"</div>" : "")+"</div>"+
+          (a.art === "hinweis"
+            ? '<button class="btn sm" data-act="ck-ja" data-id="'+esc(a.id)+'">Gelesen</button>'
+            : '<button class="btn sm primary" data-act="ck-ja" data-id="'+esc(a.id)+'">Übernehmen</button>'+
+              '<button class="btn sm ghost" data-act="ck-nein" data-id="'+esc(a.id)+'">Ablehnen</button>')+
+        "</div>").join("")+
+      (l.length > zeigen.length ? '<button class="linkish" data-act="ck-mehr">alle '+l.length+" anzeigen</button>" : "")+
+      "</div></div>";
   }
 };
 
@@ -6838,6 +7236,17 @@ function renderSetup(){
       "damit sind die Texte auf jedem Gerät und bei allen Nutzern gleich. Klappt das nicht, sagt „Speicher prüfen“ warum.</div>"+
     "</div></div>"+
 
+    Papierkorb.panelHTML()+
+    '<div class="panel" style="margin-top:18px"><div class="panel-head"><h3>Verbindung zu Claude</h3>'+
+      '<span class="chip '+(NfExport.zustand==="ok"?"ok":"")+'" style="margin-left:auto">'+(NfExport.zustand==="ok"?"verbunden":"nicht verbunden")+"</span></div>"+
+      '<div class="panel-body"><div class="tiny muted" style="line-height:1.8">'+
+      "AQT legt im verbundenen Ordner aqt-stand.json (Vorgänge, Chronik, Papierkorb) und aqt-firmen.json (alle Firmen) ab "+
+      "und liest claude-auftraege.json (Vorschläge von Claude, oben auf jeder Seite). "+
+      (NfExport.geschrieben ? "Zuletzt geschrieben "+esc(NfExport.geschrieben)+" Uhr. " : "")+
+      (ClaudeKanal.zuletzt ? "Vorschläge gelesen "+esc(ClaudeKanal.zuletzt)+" Uhr · offen: "+ClaudeKanal.offen.length+". " : "")+
+      "</div>"+(NfExport.zustand!=="ok" ? '<div style="margin-top:10px"><button class="btn sm" data-act="nfx-erlauben">Ordner freigeben</button> '+
+        '<button class="btn sm ghost" data-act="nfx-ordner-waehlen">Ordner wählen (K:\\KI Programme\\AQT)</button></div>' : "")+
+    "</div></div>"+
     '<div class="panel" style="margin-top:18px"><div class="panel-head"><h3>Noch nicht gebaut</h3></div><div class="panel-body">'+
       '<div class="tiny muted" style="line-height:1.9">'+
       "Automatischer Mail-Abruf von vorgang@ (braucht ein Skript am Postfach) · "+
@@ -7141,9 +7550,9 @@ document.addEventListener("click", e => {
   const firmaDel = t.getAttribute("data-firma-del");
   if(firmaDel){
     const f = DB.firma(firmaDel); if(!f) return;
-    bestaetigen("Firma endgültig löschen?", "„"+(f.name||"(ohne Namen)")+"“ wird entfernt, samt Briefen, Objekten, Vorgängen und Aktivitäten. Das lässt sich nicht rückgängig machen.", "Endgültig löschen", () => {
-      firmenLoeschen([firmaDel]); App.auswahl.delete(firmaDel);
-      Store.save(); render(); toast("Firma gelöscht");
+    bestaetigen("Firma löschen?", "„"+(f.name||"(ohne Namen)")+"“ kommt samt Briefen, Objekten, Vorgängen und Aktivitäten in den Papierkorb (30 Tage).", "Löschen", () => {
+      const pk = firmenLoeschen([firmaDel]); App.auswahl.delete(firmaDel);
+      Store.save(); render(); papierkorbToast("Firma gelöscht", pk);
     });
     return;
   }
@@ -7160,7 +7569,7 @@ document.addEventListener("click", e => {
   }
 
   const dubDel = t.getAttribute("data-dub-del");
-  if(dubDel){ firmenLoeschen([dubDel]); Store.save(); render(); dublettenZeigen(); toast("Firma gelöscht"); return; }
+  if(dubDel){ const pk = firmenLoeschen([dubDel]); Store.save(); render(); dublettenZeigen(); papierkorbToast("Firma gelöscht", pk); return; }
 
   const go_ = t.getAttribute("data-go");
   if(go_){ go(go_); return; }
@@ -7353,8 +7762,50 @@ function aktion(act, el){
     }
     case "vorgang-loeschen": {
       const v = V();
-      bestaetigen("Vorgang löschen?", "„"+(v.titel||"Ohne Titel")+"“ wird mit allen Aktivitäten entfernt. Die Firma bleibt bestehen.",
-        "Löschen", ()=>{ vorgangLoeschen(v.id); Store.save(); render(); toast("Vorgang gelöscht"); });
+      bestaetigen("Vorgang löschen?", "„"+(v.titel||"Ohne Titel")+"“ – "+DB.firmaName(v.firmaId)+
+        " – kommt mit allen Aktivitäten in den Papierkorb (30 Tage). Die Firma bleibt bestehen.",
+        "Löschen", ()=>{ const pk = vorgangLoeschen(v.id); Store.save(); render(); papierkorbToast("Vorgang gelöscht", pk); });
+      return;
+    }
+    /* --- B37: Schnellknoepfe in „Fällig“ --- */
+    case "fz-plus14": {
+      const v = DB.vorgang(el.getAttribute("data-id")); if(!v) return;
+      const w = wvNaechste(v); if(!w) return;
+      const alt = w.datum;
+      w.datum = plusTage(14, tageBis(alt) < 0 ? null : alt);
+      neueAktivitaet({ vorgangId:v.id, typ:"Notiz", datum:ISO(new Date()),
+        text:"Wiedervorlage „"+(w.anlass||"Wiedervorlage")+"“ verschoben: "+fmtDatum(alt)+" → "+fmtDatum(w.datum) });
+      Store.save(); render(); toast(DB.firmaName(v.firmaId)+": neu am "+fmtDatum(w.datum)); return;
+    }
+    case "fz-erledigt": {
+      const v = DB.vorgang(el.getAttribute("data-id")); if(!v) return;
+      const w = wvNaechste(v); if(!w) return;
+      w.erledigt = true;
+      neueAktivitaet({ vorgangId:v.id, typ:"Notiz", datum:ISO(new Date()), text:"Erledigt: "+(w.anlass||"Wiedervorlage") });
+      Store.save(); render();
+      if(!v.ergebnis && !wvNaechste(v)){ toast("Erledigt – bitte nächsten Termin setzen"); vorgangOeffnen(v.id); }
+      else toast("Erledigt");
+      return;
+    }
+    case "fz-absage": { const v = DB.vorgang(el.getAttribute("data-id")); if(v) abschlussDialog(v, "verloren"); return; }
+    /* --- B37: Vorschlaege von Claude, Papierkorb --- */
+    case "ck-ja":   { ClaudeKanal.entscheiden(el.getAttribute("data-id"), true); return; }
+    case "ck-nein": { ClaudeKanal.entscheiden(el.getAttribute("data-id"), false); return; }
+    case "ck-alle": {
+      const n = ClaudeKanal.offen.filter(a => a.art !== "hinweis").length;
+      bestaetigen("Alle Vorschläge übernehmen?", n+" Vorschläge von Claude werden eingetragen. Hinweise bleiben stehen.", "Übernehmen",
+        () => ClaudeKanal.alleUebernehmen());
+      return;
+    }
+    case "ck-mehr": { ClaudeKanal.alle = true; ClaudeKanal.rendern(); return; }
+    case "pk-zurueck": {
+      const t = Papierkorb.wiederherstellen(el.getAttribute("data-id"));
+      render(); toast(t ? "Wiederhergestellt: "+t : "Nicht mehr im Papierkorb"); return;
+    }
+    case "pk-weg": {
+      const id = el.getAttribute("data-id");
+      bestaetigen("Endgültig löschen?", "Der Eintrag verschwindet aus dem Papierkorb und lässt sich nicht mehr zurückholen.", "Endgültig löschen",
+        () => { Papierkorb.endgueltig(id); render(); toast("Endgültig gelöscht"); });
       return;
     }
     case "gewonnen": { const v=V(); vorgangFelderLesen(v); abschlussDialog(v,"gewonnen"); return; }
@@ -7513,7 +7964,7 @@ function aktion(act, el){
       const x = F();
       const n = DB.vorgaengeVon(x.id).length, o = DB.objekteVon(x.id).length;
       bestaetigen("Firma löschen?", x.name+" wird entfernt"+(n||o?", dazu "+o+" Objekte und "+n+" Vorgänge":"")+".",
-        "Löschen", ()=>{ firmenLoeschen([x.id]); Store.save(); layerSchliessen(); render(); toast("Firma gelöscht"); });
+        "Löschen", ()=>{ const pk = firmenLoeschen([x.id]); Store.save(); layerSchliessen(); render(); papierkorbToast("Firma gelöscht", pk); });
       return;
     }
     case "objekt-neu": {
@@ -7714,11 +8165,11 @@ function aktion(act, el){
         const f = DB.firma(ids[0]);
         if(!f){ App.auswahl.clear(); render(); return; }
         const nv = DB.vorgaengeVon(f.id).length;
-        bestaetigen("Firma endgültig löschen?", "„"+(f.name||"(ohne Namen)")+"“ wird entfernt, samt Briefen, Objekten"+
-          (nv ? ", "+nv+(nv===1?" Vorgang":" Vorgängen") : ", Vorgängen")+" und Aktivitäten. Das lässt sich nicht rückgängig machen.",
-          "Endgültig löschen", () => {
-            firmenLoeschen([f.id]); App.auswahl.clear();
-            Store.save(); render(); toast("Firma gelöscht");
+        bestaetigen("Firma löschen?", "„"+(f.name||"(ohne Namen)")+"“ kommt samt Briefen, Objekten"+
+          (nv ? ", "+nv+(nv===1?" Vorgang":" Vorgängen") : ", Vorgängen")+" und Aktivitäten in den Papierkorb (30 Tage).",
+          "Löschen", () => {
+            const pk = firmenLoeschen([f.id]); App.auswahl.clear();
+            Store.save(); render(); papierkorbToast("Firma gelöscht", pk);
           });
         return;
       }

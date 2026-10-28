@@ -2498,7 +2498,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 27.10.2026 · B34</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 28.10.2026 · B35</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -3919,30 +3919,33 @@ function nachfassEingetragen(){
   const v = DB.vorgang(LayerCtx.vorgangId); if(!v) return;
   const stufe = Number(LayerCtx.nachfassStufe)||1;
   const txt = ($("#nfText")||{}).value || "";
-  const heuteIso = ISO(new Date());
+  toast("Eingetragen · " + nachfassVermerken(v, stufe, ISO(new Date()), txt));
+  Store.save();
+  vorgangOeffnen(v.id);
+  render();
+}
 
+/* B35: gemeinsamer Teil von „Versendet – eintragen“ und der Rueckmeldung
+   aus Outlook (NfExport.rueckmeldung) – Chronik, Stufe, naechste Wiedervorlage */
+function nachfassVermerken(v, stufe, datum, txt){
   neueAktivitaet({
-    vorgangId:v.id, typ:"E-Mail", datum:heuteIso,
+    vorgangId:v.id, typ:"E-Mail", datum:datum,
     text:"Nachfassen Stufe "+stufe+" ("+NACHFASS[stufe-1].kurz+") per E-Mail versendet\n\n"+txt
   });
 
   v.nachfassStufe = stufe;
-  v.nachfassLetzte = heuteIso;
+  v.nachfassLetzte = datum;
   if(!v.ergebnis) v.stufe = "nachfass";
   for (const x of (v.wiedervorlagen||[]))
     if(!x.erledigt && (x.anlass||"").indexOf("Nachfassen") === 0) x.erledigt = true;
 
   const tage = nachfassFrist(v);
   if(stufe < 3){
-    wvSetzen(v, plusTage(tage), "Nachfassen zum Angebot (Stufe "+(stufe+1)+")");
-    toast("Eingetragen · Stufe "+(stufe+1)+" in "+tage+" Tagen vorgemerkt");
-  } else {
-    wvSetzen(v, plusTage(14), "Letzte Nachfassstufe ohne Antwort – Vorgang entscheiden");
-    toast("Eingetragen · in 14 Tagen entscheiden");
+    wvSetzen(v, plusTage(tage, datum), "Nachfassen zum Angebot (Stufe "+(stufe+1)+")");
+    return "Stufe "+(stufe+1)+" in "+tage+" Tagen vorgemerkt";
   }
-  Store.save();
-  vorgangOeffnen(v.id);
-  render();
+  wvSetzen(v, plusTage(14, datum), "Letzte Nachfassstufe ohne Antwort – Vorgang entscheiden");
+  return "in 14 Tagen entscheiden";
 }
 
 /* ---------- 7c. Anhänge am Vorgang -----------------------------
@@ -5730,6 +5733,7 @@ const NfExport = {
       if(!h){ this.zustand = "kein-ordner"; return; }
       const p = await h.queryPermission({ mode:"readwrite" });
       if(p !== "granted"){ this.zustand = "erlauben"; return; }
+      await this.rueckmeldung(h);
       const d = this.daten();
       const inhalt = JSON.stringify(d);
       this.anzahl = d.angebote.length; this.faellig = d.angebote.filter(a => a.faellig).length;
@@ -5748,7 +5752,39 @@ const NfExport = {
     }finally{
       this.laeuft = false;
       nfExportRendern();
+      if(this.neu){
+        toast(this.neu+(this.neu===1?" Nachfass-Mail":" Nachfass-Mails")+" aus Outlook eingetragen");
+        this.neu = 0; setTimeout(() => render(), 0);
+      }
     }
+  },
+  /* B35: Rueckmeldung vom Outlook-Assistenten. Claude legt im selben Ordner
+     outlook-versendet.json ab: { meldungen:[{ schluessel, vorgangId, stufe, datum, an, betreff, text }] }
+     – Nachfass-Mails, die Romano aus Outlook versendet hat. Eingetragen wird wie
+     bei „Versendet – eintragen“; der Schluessel steht in der Aktivitaet, so wird
+     nichts doppelt gebucht. Abgeschlossene oder unbekannte Vorgaenge werden uebergangen. */
+  neu:0,
+  async rueckmeldung(h){
+    let d;
+    try{
+      const fh = await h.getFileHandle("outlook-versendet.json");
+      d = JSON.parse(await (await fh.getFile()).text());
+    }catch(_){ return; }
+    const schonDa = new Set();
+    for(const a of Store.data.aktivitaeten){
+      const m = /\[Outlook-Nachfass ([^\]]+)\]/.exec(a.text||""); if(m) schonDa.add(m[1]);
+    }
+    let n = 0;
+    for(const e of (d.meldungen||[])){
+      if(!e || !e.schluessel || schonDa.has(e.schluessel)) continue;
+      const v = DB.vorgang(e.vorgangId); if(!v || v.ergebnis) continue;
+      const stufe = Math.min(3, Math.max(1, Number(e.stufe) || (Number(v.nachfassStufe)||0)+1));
+      nachfassVermerken(v, stufe, e.datum || ISO(new Date()),
+        "aus Outlook · an "+(e.an||"")+"\nBetreff: "+(e.betreff||"")+"\n\n"+(e.text||"")+
+        "\n[Outlook-Nachfass "+e.schluessel+"]");
+      schonDa.add(e.schluessel); n++;
+    }
+    if(n){ Store.save(); this.neu = n; }
   },
   /* Firefox kennt showDirectoryPicker nicht: Datei in den Download-Ordner
      legen, Claude sucht dort ebenfalls nach aqt-angebote*.json */

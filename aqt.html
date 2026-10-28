@@ -929,6 +929,7 @@ const Store = {
       Sync.offenMerken();
       Sync.anstossen();
     }
+    try{ NfExport.nachSpeichern(); }catch(_){}   /* B36: Stand fuer Claude */
     if(!ok) speicherWarnung("lokal", "NICHT gespeichert – bitte sofort unter Einstellungen die Daten exportieren.");
     return ok;
   },
@@ -2498,7 +2499,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 28.10.2026 · B35</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 28.10.2026 · B36</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -5718,6 +5719,33 @@ const NfExport = {
     }).filter(x => x.email);
     return { quelle:"AQT", angebote, abgeschlossen };
   },
+  /* B36: Gesamtstand fuer Claude (aqt-stand.json im selben Ordner) – alle
+     Vorgaenge mit Firma, Stufe, naechster Wiedervorlage und Faellig-Kennung
+     wie in der Pipeline. So sieht Claude AQT jederzeit, ohne Bildschirm. */
+  stand(){
+    const firmen = {};
+    const vorgaenge = Store.data.vorgaenge.map(v => {
+      const f = DB.firma(v.firmaId) || {}, w = wvNaechste(v);
+      if(v.firmaId && !firmen[v.firmaId]) firmen[v.firmaId] = { name:f.name||"", email:f.email||"", telefon:f.telefon||"",
+        plz:f.plz||"", ort:f.ort||"", status:f.status||"", ansprechpartner:f.ansprechpartner||"" };
+      return {
+        id:v.id, firmaId:v.firmaId||"", firma:f.name||"", titel:v.titel||"", stufe:v.stufe||"",
+        ergebnis:v.ergebnis||"", absagegrund:v.absagegrund||"", herkunft:v.herkunft||"",
+        anfrageAm:v.anfrageAm||"", frist:v.frist||"", angebotAm:v.angebotAm||"",
+        nachfassStufe:Number(v.nachfassStufe)||0, nachfassLetzte:v.nachfassLetzte||"",
+        deal:istDeal(v), faellig:istDeal(v) && inFaelligListe(v),
+        wiedervorlage: w ? { datum:w.datum||"", anlass:w.anlass||"" } : null,
+        aktivitaeten: Store.data.aktivitaeten.filter(a => a.vorgangId===v.id).length,
+        angelegt:v.angelegt||""
+      };
+    });
+    return { quelle:"AQT", stand:"B36", anzahlFirmen:Store.data.firmen.length, vorgaenge, firmen };
+  },
+  /* Nach jedem Speichern (gebremst) neu ablegen, wenn der Ordner freigegeben ist */
+  nachSpeichern(){
+    clearTimeout(this._t);
+    this._t = setTimeout(() => { this.zeit = 0; this.schreiben(false).catch(()=>{}); }, 4000);
+  },
   async schreiben(erzwingen){
     if(this.laeuft) return;
     if(!erzwingen && Date.now() - this.zeit < 60000){ nfExportRendern(); return; }
@@ -5744,6 +5772,15 @@ const NfExport = {
         await w.write(JSON.stringify(d, null, 1)); await w.close();
         this.letzter = inhalt;
         this.geschrieben = new Date().toLocaleTimeString("de-DE", { hour:"2-digit", minute:"2-digit" });
+      }
+      /* B36: Gesamtstand nur schreiben, wenn sich etwas geaendert hat */
+      const s = this.stand(), sInhalt = JSON.stringify(s);
+      if(erzwingen || sInhalt !== this.letzterStand){
+        s.erstellt = new Date().toISOString();
+        const sd = await h.getFileHandle("aqt-stand.json", { create:true });
+        const sw = await sd.createWritable();
+        await sw.write(JSON.stringify(s)); await sw.close();
+        this.letzterStand = sInhalt;
       }
       this.zustand = "ok"; this.fehler = "";
       this.zeit = Date.now();

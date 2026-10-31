@@ -2529,7 +2529,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 31.10.2026 · B39</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 31.10.2026 · B40</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -3343,10 +3343,15 @@ function naechsterSchritt(v){
       warum:"Diese Firma ist Kunde. Für einen neuen Auftrag „Will ein Angebot“ wählen, sonst den Kontakt löschen.",
       tasten:'<button class="btn" data-act="akq-angebot">Angebot anlegen</button>'
     };
-    if(zg === "Ehemaliger Kunde") return {
+    if(fk && keineWerbung(fk)) return {
       ton:"crit", was:"Ehemaliger Kunde – keine Werbung",
-      warum:"Ehemalige Kunden werden nicht angesprochen. Meldet sich die Firma selbst, „Will ein Angebot“ wählen, sonst den Kontakt löschen.",
+      warum:"Diese Firma ist gesperrt und wird nicht angesprochen. Meldet sie sich selbst, „Will ein Angebot“ wählen, sonst den Kontakt löschen.",
       tasten:'<button class="btn" data-act="akq-angebot">Angebot anlegen</button>'
+    };
+    if(zg === "Ehemaliger Kunde" && stufenIndexAkq(v) === 0) return {
+      ton:"warn", was:"Ehemaliger Kunde – zurückgewinnen",
+      warum:"Nicht wie Kaltakquise ansprechen: an die frühere Zusammenarbeit anknüpfen und fragen, was heute fehlt.",
+      tasten: anrufen
     };
   }
 
@@ -4673,7 +4678,7 @@ function renderFirmen(){
       fseg("liste","Alle Firmen",alle.filter(x=>!x.ablage).length)+
       fseg("anruf","Anrufliste",akq.length,akqUeber)+
     "</div>"+
-    '<span class="tiny muted">Kunden sind für Kaltakquise gesperrt · Ehemalige bekommen keine Werbung</span></div>';
+    '<span class="tiny muted">Kunden sind für Kaltakquise gesperrt · Ehemalige werden zur Rückgewinnung angesprochen, außer sie sind gesperrt</span></div>';
   if(App.firmenAnsicht === "anruf"){
     $("#content").innerHTML = fkopf + akquiseHTML(akq);
     return;
@@ -4930,10 +4935,16 @@ function fJetzt(x, vorgaenge){
     ton = "ok"; was = "Aktueller Kunde";
     warum = "Keine Kaltakquise. Briefe nur mit eigenem Anlass (z.B. Saisonstart). Für einen weiteren Auftrag ein Angebot anlegen.";
     tasten = '<button class="btn primary" data-act="angebot-fuer-firma">+ Angebot</button>';
-  } else if(!offen.length && zg === "Ehemaliger Kunde"){
+  } else if(!offen.length && keineWerbung(x)){
     ton = "warn"; was = "Ehemaliger Kunde – keine Werbung";
-    warum = "Keine Briefe, keine Kaltakquise. Meldet sich die Firma selbst, ein Angebot anlegen.";
+    warum = "Gesperrt: keine Briefe, keine Kaltakquise. Meldet sich die Firma selbst, ein Angebot anlegen.";
     tasten = '<button class="btn primary" data-act="angebot-fuer-firma">+ Angebot</button>';
+  } else if(!offen.length && zg === "Ehemaliger Kunde"){
+    ton = "warn"; was = "Ehemaliger Kunde – zurückgewinnen";
+    warum = "Nicht wie Kaltakquise ansprechen: an die frühere Zusammenarbeit anknüpfen. Kontaktweg: "+
+      (x.kontaktweg==="Aktiv" ? "Anrufen" : "Brief")+" (oben links unter Einordnung umstellbar).";
+    tasten = '<button class="btn primary" data-act="vorgang-fuer-firma">Rückgewinnung starten</button>'+
+      '<button class="btn" data-act="brief-vermerk">Brief verschickt</button>';
   } else if(offen.length){
     const naechste = offen.map(v => ({ v, w:wvNaechste(v) })).filter(e => e.w)
       .sort((a,b)=>a.w.datum.localeCompare(b.w.datum))[0];
@@ -5783,7 +5794,7 @@ const NfExport = {
     const aktivitaeten = Store.data.aktivitaeten.filter(a => (a.datum||"") >= ab).map(a => ({
       id:a.id, vorgangId:a.vorgangId, typ:a.typ||"", datum:a.datum||"", text:String(a.text||"").slice(0,400) }));
     const vl = (typeof Vorlagen!=="undefined") ? Vorlagen.aktuell() : {};
-    return { quelle:"AQT", stand:"B39", seite:App.seite, anzahlFirmen:Store.data.firmen.length,
+    return { quelle:"AQT", stand:"B40", seite:App.seite, anzahlFirmen:Store.data.firmen.length,
       vorgaenge, firmen, aktivitaeten,
       einstellungen:{ nachfassTage:Number(vl.nachfassTage)||14, ich:vl.ich||"",
         vorlagen:(vl.stufen||[]).map(s => ({ kurz:s.kurz||"", betreff:s.betreff||"" })) },
@@ -5797,7 +5808,7 @@ const NfExport = {
       nv.set(v.firmaId, (nv.get(v.firmaId)||0)+1);
       if(!v.ergebnis) offen.set(v.firmaId, v.id);
     }
-    return { quelle:"AQT", stand:"B39",
+    return { quelle:"AQT", stand:"B40",
       felder:["id","name","branche","gruppe","segment","hauptkategorie","unterkategorie","ablage","kontaktweg","status","quelle",
         "ansprechpartner","briefanrede","telefon","email","website","strasse","plz","ort","gesperrt","notiz","angelegt",
         "vorgaenge","offenerVorgang","briefe","letzterBrief"],
@@ -6183,7 +6194,7 @@ const ClaudeKanal = {
   },
   /* B38: daten = { felder:{name, plz, ort, …}, akquise:{ titel, text, wiedervorlage, anlass } }.
      Gleiche Firma = gleicher Name (dubNorm) und gleiche PLZ oder gleicher Ort.
-     Kunden und Ehemalige (B39) bekommen nur eine Notiz, keinen Akquise-Kontakt. */
+     Kunden und gesperrte Ehemalige (B40) bekommen nur eine Notiz, keinen Akquise-Kontakt. */
   firmaAnlegen(a){
     const d = a.daten || {}, fe = d.felder || {}, ak = d.akquise || {};
     const name = String(fe.name||"").trim(); if(!name) throw new Error("Firmenname fehlt");
@@ -6620,8 +6631,8 @@ function serienbriefExport(ids){
 
 /* ---------- Empfaenger-Auswahl vor dem Briefexport ----------------
    Vor jeder Brief-Datei wird gefragt, welche Zielgruppen angeschrieben
-   werden – Kunden (z.B. Saisonstart Glasreinigung), Altangebote,
-   Kaltakquise. Ehemalige sind seit B39 nie dabei. Erkannt wird am Status
+   werden – Kunden (z.B. Saisonstart Glasreinigung), Ehemalige
+   („Wir sind noch da"), Altangebote, Kaltakquise. Erkannt wird am Status
    und an der Quelle (Ausgangsliste). Die Zielgruppe kommt als eigene
    Spalte in die Serienbrief-Datei, so kann Word je Gruppe anderen Text
    einsetzen. */
@@ -6636,8 +6647,9 @@ function zielgruppe(f){
   if(f.quelle==="Altangebot" || f.quelle==="Empfehlung" || f.quelle==="Eingehende Anfrage") return "Interessent (Angebot erhalten)";
   return "Kaltakquise";
 }
-/* B39: Ehemalige bekommen keine Werbung (Romano 31.10.2026) */
-function keineWerbung(f){ return zielgruppe(f) === "Ehemaliger Kunde"; }
+/* B40: Gesperrte Ehemalige (Privatkunden, Einmalauftraege) bekommen keine
+   Werbung, alle anderen Ehemaligen duerfen zurueckgewonnen werden */
+function keineWerbung(f){ return zielgruppe(f) === "Ehemaliger Kunde" && !!f.gesperrt; }
 function empfaengerWahl(liste, titel, weiter){
   const n = new Map(ZIELGRUPPEN.map(z=>[z,0]));
   for(const f of liste) n.set(zielgruppe(f), n.get(zielgruppe(f))+1);
@@ -6647,7 +6659,7 @@ function empfaengerWahl(liste, titel, weiter){
      bekommen hat, wird nicht doppelt angeschrieben. */
   const zuletzt = f => (f.briefe||[]).reduce((m,b)=>(b.datum||"") > m ? b.datum : m, "");
   const kuerzlich = tage => liste.filter(f => { const d = zuletzt(f); return d && tageBis(d) !== null && -tageBis(d) < tage; }).length;
-  const hinweis = { "Kunde":"nur mit eigenem Anlass, z.B. Saisonstart",
+  const hinweis = { "Kunde":"nur mit eigenem Anlass, z.B. Saisonstart", "Ehemaliger Kunde":"eigener Text: „Kommen Sie zurück“",
     "Interessent (Angebot erhalten)":"an das frühere Angebot anknüpfen" };
   layerZeigen('<div class="modal"><div class="drawer-head"><h2>'+esc(titel)+" – wen anschreiben?</h2></div>"+
     '<div class="drawer-body">'+
@@ -7754,9 +7766,9 @@ function aktion(act, el){
                       herkunft: zielgruppe(x)==="Kunde" ? "Bestandskunde" : "Eingehende Anfrage" } : {}));
         vorgangOeffnen(v.id);
       };
-      /* B39: Ehemalige bekommen keine Werbung */
+      /* B40: Gesperrte Ehemalige bekommen keine Werbung */
       if(!angebot && keineWerbung(x)){
-        bestaetigen("Ehemaliger Kunde", "„"+(x.name||"")+"“ ist ehemaliger Kunde und bekommt keine Werbung. "+
+        bestaetigen("Ehemaliger Kunde", "„"+(x.name||"")+"“ ist gesperrt und bekommt keine Werbung. "+
           "Meldet sich die Firma selbst, besser „+ Angebot“ nehmen. Trotzdem einen Akquise-Kontakt anlegen?",
           "Trotzdem anlegen", anlegen);
         return;

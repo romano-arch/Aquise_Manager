@@ -1281,19 +1281,31 @@ function wegVorschlag(segment){
    Beide werden beim Import automatisch gesetzt und sind filterbar. */
 const GRUPPEN = [
   "Medizin \u2013 Gro\u00dfpraxen & Zentren",
-  "Zahnarztpraxen einzeln",
   "Arztpraxen einzeln",
-  "Kanzleien & Beratung",
+  "Zahnarztpraxen einzeln",
+  "Kliniken & Krankenh\u00e4user",
+  "Apotheken",
+  "Pflege, Reha & Fitness",
+  "Gesundheit \u2013 Sonstige",
+  "Kitas & Kinderg\u00e4rten",
+  "Schulen & Bildung",
+  "Rechtsanw\u00e4lte & Notare",
+  "Steuerberater & Wirtschaftspr\u00fcfer",
+  "Unternehmensberatung",
   "Banken, Finanzen & Versicherung",
+  "Immobilien",
+  "Architekten & Ingenieure",
+  "IT, Medien & Werbung",
+  "Allgemeine Dienstleistung / B\u00fcro",
+  "Handwerk & Bau",
   "Industrie, Handel & Logistik",
   "Einzelhandel & Gesch\u00e4fte",
-  "\u00d6ffentliche Hand & Verb\u00e4nde",
-  "Hotels & Gastgewerbe",
   "Autoh\u00e4user & Kfz",
-  "Bildung & Schulen",
-  "Immobilien",
+  "Hotels & Gastgewerbe",
+  "\u00d6ffentliche Hand & Verb\u00e4nde",
+  "Vereine, Kirchen & Soziales",
   "Konsulate & Botschaften",
-  "Allgemeine Dienstleistung / B\u00fcro"
+  "Zu kl\u00e4ren"
 ];
 const SEGMENTE = ["Gro\u00dfpraxis","Gro\u00dfarbeitgeber","Filiale","\u00d6ffentlich","Privatschule","Konsulat"];
 
@@ -1305,7 +1317,7 @@ function gruppeVorschlag(roh, grosspraxis){
   const hat = (...kws)=>kws.some(k=>t.indexOf(k)>=0);
   if(hat("botschaft","konsulat")) return "Konsulate & Botschaften";
   if(hat("schule","bildung","kita","kinder","hochschul","universit","akademie","forschungsinstitut"))
-    return "Bildung & Schulen";
+    return "Schulen & Bildung";
   if(hat("verwaltung","beh\u00f6rde","rathaus","kommunal","kirche","vereinigung","organisation","gemeinn\u00fctzig","verein","stiftung"))
     return "\u00d6ffentliche Hand & Verb\u00e4nde";
   if(hat("arzt","zahn","therapiezentrum","gesundheit","radiolog","dialyse","reha","klinik","mvz","poliklinik","medizin","dental","apotheke","praxis","ambulant","physio","labor","tiermedizin")){
@@ -1314,7 +1326,7 @@ function gruppeVorschlag(roh, grosspraxis){
     return "Arztpraxen einzeln";
   }
   if(hat("rechtsanwalt","anwalt","kanzlei","berater","beratung","wirtschaftspr\u00fcf","steuerberat","notar"))
-    return "Kanzleien & Beratung";
+    return /steuer|wirtschaftspr/.test(t) ? "Steuerberater & Wirtschaftspr\u00fcfer" : /anwalt|notar|kanzlei/.test(t) ? "Rechtsanw\u00e4lte & Notare" : "Unternehmensberatung";
   if(hat("bank","finanz","versicher","sparkasse","verm\u00f6gens")) return "Banken, Finanzen & Versicherung";
   if(hat("hotel","gastst","restaurant","reiseb\u00fcro","pension","gastro")) return "Hotels & Gastgewerbe";
   if(hat("autoh\u00e4ndler","autowerkstatt","kfz","auto","werkstatt")) return "Autoh\u00e4user & Kfz";
@@ -1819,14 +1831,14 @@ function hauptZuGruppe(f, haupt, unter){
     case "Medizin & Gesundheit":
       if(f.segment==="Gro\u00dfpraxis") return "Medizin \u2013 Gro\u00dfpraxen & Zentren";
       return /zahn|dental/.test(u) ? "Zahnarztpraxen einzeln" : "Arztpraxen einzeln";
-    case "Kanzleien & Beratung": return "Kanzleien & Beratung";
+    case "Kanzleien & Beratung": return /recht|notar|anwalt/.test(u) ? "Rechtsanw\u00e4lte & Notare" : /steuer|wirtschaftspr/.test(u) ? "Steuerberater & Wirtschaftspr\u00fcfer" : "Unternehmensberatung";
     case "Sonstige eindeutig erkennbare Dienstleistungen":
       return /bank|finanz|versicher/.test(u) ? "Banken, Finanzen & Versicherung" : "Allgemeine Dienstleistung / B\u00fcro";
     case "Industrie & Logistik": return "Industrie, Handel & Logistik";
     case "Einzelhandel": return /auto|fahrzeug|kfz/.test(u) ? "Autoh\u00e4user & Kfz" : "Einzelhandel & Gesch\u00e4fte";
     case "\u00d6ffentliche & Gemeinn\u00fctzige Einrichtungen": return "\u00d6ffentliche Hand & Verb\u00e4nde";
     case "Gastronomie & Hotellerie": return "Hotels & Gastgewerbe";
-    case "Bildung & Betreuung": return "Bildung & Schulen";
+    case "Bildung & Betreuung": return /kita|kinder|krippe/.test(u) ? "Kitas & Kinderg\u00e4rten" : "Schulen & Bildung";
     case "Immobilien & Hausverwaltung": return "Immobilien";
     default: return "Allgemeine Dienstleistung / B\u00fcro";
   }
@@ -2529,7 +2541,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 31.10.2026 · B40</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 12.11.2026 · B43</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -4657,7 +4669,16 @@ function renderFirmen(){
     (function(){
       const nA = Store.data.firmen.filter(x=>x.ablage).length;
       return (App.firmenFilter.ablage||"")!==""
-        ? '<button class="btn primary" data-act="ablage-toggle">← Zurück zur Firmenliste</button>'
+        ? '<button class="btn primary" data-act="ablage-toggle">← Zurück zur Firmenliste</button>'+
+          (function(){
+            const zaehl = {};
+            for(const x of Store.data.firmen) if(x.ablage) zaehl[x.ablage] = (zaehl[x.ablage]||0)+1;
+            const cur = App.firmenFilter.ablage;
+            return '<select data-filter="ablage" style="width:auto;padding:5px 28px 5px 10px" title="Nur eine Ablage zeigen">'+
+              '<option value="*"'+(cur==="*"?" selected":"")+'>Alle Ablagen ('+nA+')</option>'+
+              Object.keys(zaehl).sort().map(n=>'<option value="'+esc(n)+'"'+(cur===n?" selected":"")+'>'+esc(n)+' ('+zaehl[n]+')</option>').join("")+
+              '</select>';
+          })()
         : '<button class="btn" data-act="ablage-toggle">Ablage ('+nA+')</button>';
     })()+
     '<button class="btn" data-act="ausserhalb">Außerhalb Rhein-Main</button>'+
@@ -5794,7 +5815,7 @@ const NfExport = {
     const aktivitaeten = Store.data.aktivitaeten.filter(a => (a.datum||"") >= ab).map(a => ({
       id:a.id, vorgangId:a.vorgangId, typ:a.typ||"", datum:a.datum||"", text:String(a.text||"").slice(0,400) }));
     const vl = (typeof Vorlagen!=="undefined") ? Vorlagen.aktuell() : {};
-    return { quelle:"AQT", stand:"B40", seite:App.seite, anzahlFirmen:Store.data.firmen.length,
+    return { quelle:"AQT", stand:"B43", seite:App.seite, anzahlFirmen:Store.data.firmen.length,
       vorgaenge, firmen, aktivitaeten,
       einstellungen:{ nachfassTage:Number(vl.nachfassTage)||14, ich:vl.ich||"",
         vorlagen:(vl.stufen||[]).map(s => ({ kurz:s.kurz||"", betreff:s.betreff||"" })) },
@@ -5808,7 +5829,7 @@ const NfExport = {
       nv.set(v.firmaId, (nv.get(v.firmaId)||0)+1);
       if(!v.ergebnis) offen.set(v.firmaId, v.id);
     }
-    return { quelle:"AQT", stand:"B40",
+    return { quelle:"AQT", stand:"B43",
       felder:["id","name","branche","gruppe","segment","hauptkategorie","unterkategorie","ablage","kontaktweg","status","quelle",
         "ansprechpartner","briefanrede","telefon","email","website","strasse","plz","ort","gesperrt","notiz","angelegt",
         "vorgaenge","offenerVorgang","briefe","letzterBrief"],
@@ -6188,6 +6209,20 @@ const ClaudeKanal = {
         return n+" Firma(en) zusammengelegt";
       }
       case "firma-anlegen": return this.firmaAnlegen(a);
+      case "firmen-sammel": {
+        /* B43: daten = { aenderungen:[ { id, felder:{ gruppe, ablage, … } } ] } – viele Firmen in einem Zug.
+           Nur Felder aus CLAUDE_FIRMA_FELDER, unbekannte Firmen werden gezaehlt und uebersprungen. */
+        const liste = Array.isArray(d.aenderungen) ? d.aenderungen : [];
+        if(!liste.length) throw new Error("Keine Änderungen");
+        let ok = 0, fehlt = 0, felder = 0;
+        for(const ae of liste){
+          const f = DB.firma(ae.id); if(!f){ fehlt++; continue; }
+          const fe = ae.felder || {}; let n = 0;
+          for(const k of CLAUDE_FIRMA_FELDER) if(k in fe && f[k] !== fe[k]){ f[k] = fe[k]; n++; }
+          if(n){ ok++; felder += n; }
+        }
+        return ok+" Firmen geändert ("+felder+" Felder)"+(fehlt ? ", "+fehlt+" nicht gefunden" : "");
+      }
       case "hinweis": return "gelesen";
     }
     throw new Error("Unbekannte Art: "+a.art);
@@ -6376,6 +6411,14 @@ function anfrAusfuehren(){
         email:e.email, ansprechpartner:e.ansprechpartner, kontaktweg:"Aktiv",
         status:"Interessent", quelle:"Eingehende Anfrage" });
       neuF++;
+    } else {
+      /* B41: bestehende Firma aus der Anfrage anreichern – nur leere Felder, nichts ueberschreiben */
+      const erg = { ansprechpartner:e.ansprechpartner, telefon:e.telefon, email:e.email,
+        strasse:e.strasse, plz:e.plz, ort:e.ort };
+      let geaendert = [];
+      for(const k in erg) if(!String(f[k]||"").trim() && String(erg[k]||"").trim()){ f[k] = String(erg[k]).trim(); geaendert.push(k); }
+      if(f.status==="Kein Interesse" || f.status==="Verloren") f.status = "Interessent";
+      if(geaendert.length) e.ergaenzt = geaendert;
     }
     const v = neuerVorgang({ firmaId:f.id, titel:e.titel||("Angebot "+f.name), stufe:"neu",
       kontaktweg:"Aktiv", herkunft: zielgruppe(f)==="Kunde" ? "Bestandskunde" : "Eingehende Anfrage",
@@ -6390,6 +6433,7 @@ function anfrAusfuehren(){
     neueAktivitaet({ vorgangId:v.id, typ:"E-Mail", datum:e.anfrageAm||ISO(new Date()),
       text:"Anfrage aus Outlook übernommen"+(e.ansprechpartner?"\nAnsprechpartner: "+e.ansprechpartner:"")+
         (e.email?"\nE-Mail: "+e.email:"")+(e.telefon?"\nTelefon: "+e.telefon:"")+
+        (e.ergaenzt?"\nFirmendaten ergänzt: "+e.ergaenzt.join(", "):"")+
         (e.schluessel?"\n[Anfrage-Import "+e.schluessel+"]":"") });
   }
   Anfr = null;

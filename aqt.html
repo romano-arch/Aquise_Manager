@@ -2541,7 +2541,7 @@ function appStarten(){
     '<div class="app">'+
       '<aside class="nav"><div class="brand"><div class="logo">Akquise &amp; Vertrieb</div>'+
       '<div class="sub">A.C.S. All Clean Services</div>'+
-      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 12.11.2026 · B43</div></div>'+
+      '<div class="sub" style="opacity:.55;font-size:10px;letter-spacing:.06em">STAND 12.11.2026 · B44</div></div>'+
       '<div class="nav-list" id="navList"></div>'+
       '<div class="nav-foot" style="display:flex;align-items:center;gap:8px">'+
       '<span class="dot" id="storeDot"></span><span id="storeLabel" style="flex:1">Speicher</span>'+
@@ -5815,7 +5815,7 @@ const NfExport = {
     const aktivitaeten = Store.data.aktivitaeten.filter(a => (a.datum||"") >= ab).map(a => ({
       id:a.id, vorgangId:a.vorgangId, typ:a.typ||"", datum:a.datum||"", text:String(a.text||"").slice(0,400) }));
     const vl = (typeof Vorlagen!=="undefined") ? Vorlagen.aktuell() : {};
-    return { quelle:"AQT", stand:"B43", seite:App.seite, anzahlFirmen:Store.data.firmen.length,
+    return { quelle:"AQT", stand:"B44", seite:App.seite, anzahlFirmen:Store.data.firmen.length,
       vorgaenge, firmen, aktivitaeten,
       einstellungen:{ nachfassTage:Number(vl.nachfassTage)||14, ich:vl.ich||"",
         vorlagen:(vl.stufen||[]).map(s => ({ kurz:s.kurz||"", betreff:s.betreff||"" })) },
@@ -5829,7 +5829,7 @@ const NfExport = {
       nv.set(v.firmaId, (nv.get(v.firmaId)||0)+1);
       if(!v.ergebnis) offen.set(v.firmaId, v.id);
     }
-    return { quelle:"AQT", stand:"B43",
+    return { quelle:"AQT", stand:"B44",
       felder:["id","name","branche","gruppe","segment","hauptkategorie","unterkategorie","ablage","kontaktweg","status","quelle",
         "ansprechpartner","briefanrede","telefon","email","website","strasse","plz","ort","gesperrt","notiz","angelegt",
         "vorgaenge","offenerVorgang","briefe","letzterBrief"],
@@ -6222,6 +6222,21 @@ const ClaudeKanal = {
           if(n){ ok++; felder += n; }
         }
         return ok+" Firmen geändert ("+felder+" Felder)"+(fehlt ? ", "+fehlt+" nicht gefunden" : "");
+      }
+      case "firmen-brief": {
+        /* B44: daten = { ids:[...], datum:"JJJJ-MM-TT", anlass:"Digitalpost 2026-11" } – Brief-Vermerk bei vielen Firmen.
+           Eine Firma bekommt denselben Vermerk (Datum + Anlass) nur einmal. */
+        const ids = Array.isArray(d.ids) ? d.ids : [];
+        if(!ids.length) throw new Error("Keine Firmen");
+        const datum = d.datum || ISO(new Date()), anlass = d.anlass || "Serienbrief";
+        let ok = 0, fehlt = 0, schon = 0;
+        for(const id of ids){
+          const f = DB.firma(id); if(!f){ fehlt++; continue; }
+          f.briefe = f.briefe || [];
+          if(f.briefe.some(b => b.datum === datum && b.anlass === anlass)){ schon++; continue; }
+          f.briefe.push({ id:uid(), datum:datum, anlass:anlass }); ok++;
+        }
+        return ok+" Brief-Vermerke gesetzt"+(schon ? ", "+schon+" schon vorhanden" : "")+(fehlt ? ", "+fehlt+" nicht gefunden" : "");
       }
       case "hinweis": return "gelesen";
     }
